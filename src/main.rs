@@ -212,7 +212,7 @@ mod day4 {
         static ref VALIDATORS: HashMap<&'static str, Regex> = crate::day4::build_validator_map();
     }
 
-    impl <'a> Passport<'a> {
+    impl<'a> Passport<'a> {
         fn new(input: &'a str) -> Self {
             lazy_static! {
                 static ref KEY_VALUE: Regex = Regex::new(r"([^:]+):(\S+)").unwrap();
@@ -227,13 +227,11 @@ mod day4 {
         }
 
         fn is_valid_basic(&self) -> bool {
-
-            VALIDATORS.keys().all(|k|self.fields.contains_key(*k))
+            VALIDATORS.keys().all(|k| self.fields.contains_key(*k))
         }
 
         fn is_valid_extended(&self) -> bool {
-
-            let all_present = VALIDATORS.keys().all(|k|self.fields.contains_key(*k));
+            let all_present = VALIDATORS.keys().all(|k| self.fields.contains_key(*k));
             let all_valid = self.fields.iter().all(|p| {
                 let (k, v) = p;
                 if let Some(validator) = VALIDATORS.get(*k) {
@@ -271,7 +269,6 @@ mod day4 {
         m.insert("eyr", re(r"^202\d|2030$"));
         m
     }
-
 }
 
 fn main() {
