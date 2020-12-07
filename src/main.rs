@@ -276,8 +276,8 @@ mod day4 {
 
 mod day5;
 mod day6;
+mod day7;
 
 fn main() {
-    day6::solve_default(day6::INPUT);
-    day6::solve_twist(day6::INPUT);
+    day7::solve(day7::INPUT);
 }

@@ -55,7 +55,7 @@ pub fn solve_default(input: &str) { solve(input, Declaration::empty(), Declarati
 
 pub fn solve_twist(input: &str) { solve(input, Declaration::all(), Declaration::and) }
 
-pub(crate) const INPUT: &str = "edmzkxfoprcnhijtyvl
+pub const INPUT: &str = "edmzkxfoprcnhijtyvl
 adxntojykfcvzermplh
 
 jbhpksufcaty
