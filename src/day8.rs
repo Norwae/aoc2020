@@ -41,16 +41,16 @@ pub fn solve(input: &str) {
     solve_twist(&program)
 }
 
-fn run<Trace>(program: &Vec<Operation>, trace: &mut Trace) -> Exit where Trace: FnMut(i32, usize, &Operation) -> DebugOp {
+fn run<Trace>(program: &Vec<Operation>, mut debug: Trace) -> Exit where Trace: FnMut(&mut i32, &mut usize, &mut Operation) -> DebugOp {
     let mut accu = 0i32;
     let mut pc = 0usize;
 
     while (0usize..program.len()).contains(&pc) {
         let mut op = program[pc].clone();
-        match trace(accu, pc, &op) {
+        match debug(&mut accu, &mut pc, &mut op) {
             Exit => return Abort(accu),
-            Step => ()
-        }
+            _ => ()
+        };
         match op {
             Operation::Accu(d) => {
                 accu += d;
@@ -83,13 +83,13 @@ fn solve_twist(program: &Vec<Operation>) {
 }
 
 fn solve_default(program: &Vec<Operation>) {
-    println!("Re-visiting {:?}", find_loop(program));
+    println!("Loop found with {:?}", find_loop(program));
 }
 
 fn find_loop(program: &Vec<Operation>) -> Exit {
     let mut trace: Vec<bool> = vec![false; program.len()];
-    run(program, &mut |accu, pc, _| {
-        let prev: &mut bool = &mut trace[pc];
+    run(program, |accu, pc, _| {
+        let prev = &mut trace[*pc];
         if !*prev {
             *prev = true;
             Step
@@ -98,7 +98,6 @@ fn find_loop(program: &Vec<Operation>) -> Exit {
         }
     })
 }
-
 
 pub const INPUT: &str = "acc +22
 acc +0
