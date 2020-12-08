@@ -1,100 +1,43 @@
-use regex::Regex;
-
-use crate::day8::DebugOp::*;
-use crate::day8::Exit::*;
-use crate::day8::Operation::*;
-
-#[derive(Debug, Clone)]
-enum Operation {
-    Accu(i32),
-    Jump(i32),
-    Nop(i32),
-}
-
-#[derive(Debug)]
-enum Exit {
-    Abort(i32),
-    OutOfBounds(i32),
-}
-
-enum DebugOp {
-    Step,
-    Exit,
-}
-
-fn parse(input: &str) -> Vec<Operation> {
-    let line = Regex::new(r"(?m)^((acc)|(jmp)|(nop)) ([+-]\d+)$").unwrap();
-    line.captures_iter(input).map(|l| {
-        let arg = l.get(5).unwrap().as_str().parse().unwrap();
-        match (l.get(2), l.get(3), l.get(4)) {
-            (Some(_), _, _) => Accu(arg),
-            (_, Some(_), _) => Jump(arg),
-            (_, _, Some(_)) => Nop(arg),
-            (_, _, _) => unreachable!()
-        }
-    }).collect()
-}
-
+use crate::debug_vm::*;
 pub fn solve(input: &str) {
-    let program = parse(input);
-    solve_default(&program);
-    solve_twist(&program)
+    let machine = VirtualMachine::new(input);
+    solve_default(machine.clone());
+    solve_twist(machine)
 }
 
-fn run<Trace>(program: &Vec<Operation>, mut debug: Trace) -> Exit where Trace: FnMut(&mut i32, &mut usize, &mut Operation) -> DebugOp {
-    let mut accu = 0i32;
-    let mut pc = 0usize;
-
-    while (0usize..program.len()).contains(&pc) {
-        let mut op = program[pc].clone();
-        match debug(&mut accu, &mut pc, &mut op) {
-            Exit => return Abort(accu),
-            _ => ()
-        };
-        match op {
-            Operation::Accu(d) => {
-                accu += d;
-                pc += 1;
-            }
-            Operation::Jump(d) => pc = (pc as i32 + d) as usize,
-            Operation::Nop(_) => pc += 1,
-        }
-    }
-    OutOfBounds(accu)
-}
-
-fn solve_twist(program: &Vec<Operation>) {
-    for i in 0..program.len() {
-        let update = match program[i] {
-            Accu(_) => None,
-            Jump(x) => Some(Nop(x)),
-            Nop(x) => Some(Jump(x)),
+fn solve_twist(vm: VirtualMachine) {
+    for i in 0..vm.program.len() {
+        let update = match vm.program[i] {
+            Operation::Accu(_) => None,
+            Operation::Jump(x) => Some(Operation::Nop(x)),
+            Operation::Nop(x) => Some(Operation::Jump(x)),
         };
 
         if let Some(up) = update {
-            let mut patched = program.clone();
-            patched[i] = up.clone();
-            if let OutOfBounds(accu) = find_loop(&patched) {
-                println!("running with patch {} solves with accu {}", i, accu);
+            let mut patched = vm.clone();
+            patched.program[i] = up.clone();
+            if let Exit::OutOfBounds = find_loop(&mut patched) {
+                println!("running with patch {} solves with accu {}", i, patched.accu);
                 return;
             }
         }
     }
 }
 
-fn solve_default(program: &Vec<Operation>) {
-    println!("Loop found with {:?}", find_loop(program));
+fn solve_default(mut program: VirtualMachine) {
+    find_loop(&mut program);
+    println!("Loop found with {:?}", program.accu);
 }
 
-fn find_loop(program: &Vec<Operation>) -> Exit {
-    let mut trace: Vec<bool> = vec![false; program.len()];
-    run(program, |accu, pc, _| {
+fn find_loop(vm: &mut VirtualMachine) -> Exit {
+    let mut trace: Vec<bool> = vec![false; vm.program.len()];
+    vm.run(|VirtualMachine { pc, .. }| {
         let prev = &mut trace[*pc];
         if !*prev {
             *prev = true;
-            Step
+            DebugOp::Step
         } else {
-            Exit
+            DebugOp::Exit
         }
     })
 }

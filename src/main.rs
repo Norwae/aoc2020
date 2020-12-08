@@ -1,8 +1,6 @@
 #![feature(map_first_last)]
 #![feature(assoc_int_consts)]
 
-use std::str::Split;
-
 /*
 mod day1 {
     pub fn solve_basic(input: &[&str]) {
@@ -280,6 +278,7 @@ mod day6;
 mod day7;
 
 */
+mod debug_vm;
 mod day8;
 
 fn main() {
