@@ -28,14 +28,14 @@ pub enum DebugOp {
 
 impl VirtualMachine {
     pub fn new(input: &str) -> Self {
-        let command = Regex::new(r"(?m)^((acc)|(jmp)|(nop)) ([+-]\d+)$").unwrap();
+        let command = Regex::new(r"(?m)^(acc|jmp|nop) ([+-]\d+)$").unwrap();
         let program = command.captures_iter(input).map(|l| {
-            let arg = l.get(5).unwrap().as_str().parse().unwrap();
-            match (l.get(2), l.get(3), l.get(4)) {
-                (Some(_), _, _) => Operation::Accu(arg),
-                (_, Some(_), _) => Operation::Jump(arg),
-                (_, _, Some(_)) => Operation::Nop(arg),
-                (_, _, _) => unreachable!()
+            let arg = l.get(2).unwrap().as_str().parse().unwrap();
+            match l.get(1).unwrap().as_str() {
+                "acc" => Operation::Accu(arg),
+                "jmp" => Operation::Jump(arg),
+                "nop" => Operation::Nop(arg),
+                _ => unreachable!()
             }
         }).collect();
         VirtualMachine { program, pc: 0, accu: 0 }
