@@ -3,6 +3,7 @@
 
 use std::str::Split;
 
+/*
 mod day1 {
     pub fn solve_basic(input: &[&str]) {
         let numbers: Vec<i32> = input.iter().map(|s| s.parse::<i32>().unwrap()).collect();
@@ -278,6 +279,9 @@ mod day5;
 mod day6;
 mod day7;
 
+*/
+mod day8;
+
 fn main() {
-    day7::solve(day7::INPUT);
+    day8::solve(day8::INPUT);
 }
