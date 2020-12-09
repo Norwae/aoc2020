@@ -15,7 +15,7 @@ fn solve_twist(vm: VirtualMachine) {
 
         if let Some(up) = update {
             let mut patched = vm.clone();
-            patched.program[i] = up.clone();
+            patched.program[i] = up;
             if let Exit::OutOfBounds = find_loop(&mut patched) {
                 println!("running with patch {} solves with accu {}", i, patched.accu);
                 return;

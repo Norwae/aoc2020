@@ -279,8 +279,9 @@ mod day7;
 
 */
 mod debug_vm;
-mod day8;
+// mod day8;
+mod day9;
 
 fn main() {
-    day8::solve(day8::INPUT);
+    day9::solve(day9::INPUT, 25);
 }
