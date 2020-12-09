@@ -37,7 +37,7 @@ pub fn solve(input: &str, n: usize) {
         }
     }
 
-    let slice = &numbers[start..=end];
+    let slice = &numbers[start..end];
     println!("Solution: {}", slice.iter().min().unwrap() + slice.iter().max().unwrap())
 }
 
