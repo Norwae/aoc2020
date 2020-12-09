@@ -27,15 +27,13 @@ pub fn solve(input: &str, n: usize) {
     let mut end = 0;
     let mut sum = 0;
 
-    while end < numbers.len() {
+    while end < numbers.len() && sum != target {
         if sum < target {
             sum += numbers[end];
             end += 1;
-        } else if sum > target {
+        } else {
             sum -= numbers[start];
             start += 1
-        } else {
-            break
         }
     }
 
