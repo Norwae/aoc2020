@@ -72,6 +72,9 @@ pub fn solve(input: &str) {
     println!("{}", current.iter().filter(|byte|**byte == OCCUPIED).count());
 }
 
+// a much better solution would build a map to "reference indices" for each position and direction,
+// but my brain is mush right now
+
 pub const INPUT: &str = "LLLLLLLLLL.LLLL.LLLLLLL.LLLLLLL..LLLLLLLLLLLLLLL.LLLLLLLLLLLLLLLLLLL.LLLLLLLLLLLLLL.LL.LLLLLLL
 LLLL.LLLLL.LLLLLLLLLLLL.LLLLLLLLLLLLLLLL.LLLLLLL.LLLLLLLLLLL.LLLLLLLLLLLLLLLLL.LLLL.LLLLLLLLLL
 LL.LLLLLLLLLLLLLLLLLLLL..LLLLLL..LLLLLLL.LLLLLLL.LLLLLL.LLLL.LLLLLLL.LLLLLLLLL.LLLLLLL.LLLLLLL
