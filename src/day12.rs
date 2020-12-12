@@ -72,7 +72,7 @@ impl Ship {
     }
 
     fn apply_default(mut self, movement: &Move) -> Self {
-        let result = match movement {
+        match movement {
             Move(Operation::Forward, x) => Ship { position: self.position + self.heading * *x, ..self },
             Move(Operation::Right, x) => Ship { heading: self.heading.rotate_steps(x / 90), ..self},
             Move(Operation::Left, x) => Ship { heading: self.heading.rotate_steps(-x / 90), ..self},
@@ -80,12 +80,10 @@ impl Ship {
             Move(Operation::West, x) => Ship { position: self.position + WEST * *x, ..self },
             Move(Operation::South, x) =>  Ship { position: self.position + SOUTH * *x, ..self},
             Move(Operation::North, x) =>  Ship { position: self.position + NORTH * *x, ..self},
-        };
-        dbg!(movement, &result);
-        result
+        }
     }
     fn apply_twist(mut self, movement: &Move) -> Self {
-        let result = match movement {
+        match movement {
             Move(Operation::Forward, x) => Ship { position: self.position + self.heading * *x, ..self },
             Move(Operation::Right, x) => Ship { heading: self.heading.rotate_steps(x / 90), ..self},
             Move(Operation::Left, x) => Ship { heading: self.heading.rotate_steps(-x / 90), ..self},
@@ -93,9 +91,7 @@ impl Ship {
             Move(Operation::West, x) => Ship { heading: self.heading + WEST * *x, ..self },
             Move(Operation::South, x) =>  Ship { heading: self.heading + SOUTH * *x, ..self},
             Move(Operation::North, x) =>  Ship { heading: self.heading + NORTH * *x, ..self},
-        };
-        dbg!(movement, &result);
-        result
+        }
     }
 }
 
