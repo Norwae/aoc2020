@@ -1,7 +1,7 @@
 use std::ops::{Add, Mul, Sub, Neg};
 use std::str::FromStr;
 
-use num::{clamp, Integer};
+use num::Integer;
 use num::integer::lcm;
 use regex::Regex;
 
