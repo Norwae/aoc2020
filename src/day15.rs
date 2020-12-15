@@ -6,7 +6,7 @@ pub fn solve(input: &str) {
         .map(|s| u64::from_str(s).unwrap())
         .collect::<Vec<_>>();
     let mut ledger_vec = Vec::new();
-    ledger_vec.resize(65536, -1i32);
+    ledger_vec.resize(40 << 20 /* 160 mb initial working memory */, -1i32);
     for i in 0..numbers.len() -1 {
         ledger_vec[numbers[i] as usize] = (i + 1) as i32;
     }
