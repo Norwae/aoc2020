@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 use std::str::FromStr;
 
 pub fn solve(input: &str) {
@@ -6,25 +5,28 @@ pub fn solve(input: &str) {
         .split(',')
         .map(|s| u64::from_str(s).unwrap())
         .collect::<Vec<_>>();
-    let mut ledger = numbers
-        .iter()
-        .enumerate()
-        .map(|(x, y)| (*y, x + 1))
-        .take(numbers.len() - 1)
-        .collect::<HashMap<_, _>>();
+    let mut ledger_vec = Vec::new();
+    ledger_vec.resize(65536, -1i32);
+    for i in 0..numbers.len() -1 {
+        ledger_vec[numbers[i] as usize] = (i + 1) as i32;
+    }
 
     while numbers.len() < 30000000 {
-        let previous_number = numbers.last().unwrap();
+        let previous_number = *numbers.last().unwrap() as usize;
+        if ledger_vec.len() <= previous_number {
+            ledger_vec.resize(2 * ledger_vec.len(), -1);
+        }
         let current_index = numbers.len();
-        let number_to_say = match ledger.get(previous_number) {
-            None => 0,
-            Some(already_seen) => current_index - already_seen
+        let number_to_say = if ledger_vec[previous_number] == -1 {
+            0
+        } else {
+            (current_index - ledger_vec[previous_number] as usize)
         } as u64;
 
-        ledger.insert(*previous_number, current_index);
+        ledger_vec[previous_number] = current_index as i32;
         numbers.push(number_to_say);
     }
-    println!("{:?} with max {}", numbers.last());
+    println!("{:?} with max", numbers.last());
 }
 
 pub const EXAMPLE_INPUT: &str = "0,3,6";
