@@ -1,5 +1,6 @@
 #![feature(map_first_last)]
 #![feature(assoc_int_consts)]
+#![feature(vec_remove_item)]
 
 /*
 mod day1 {
@@ -286,8 +287,9 @@ mod debug_vm;
 //mod day12;
 //mod day13;
 // mod day14;
-mod day15;
+//mod day15;
+mod day16;
 
 fn main() {
-    day15::solve(day15::INPUT)
+    day16::solve(day16::INPUT)
 }
