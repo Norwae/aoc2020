@@ -1,7 +1,5 @@
-use std::collections::{BTreeMap, BTreeSet};
-use std::collections::hash_map::Iter;
-use std::fmt::{Display, Formatter, Write};
-use std::ops::{Add, Bound, Index, IndexMut};
+use std::collections:: BTreeSet;
+use lazy_static::lazy_static;
 
 #[derive(Debug, Clone)]
 struct Cube {
@@ -18,7 +16,26 @@ impl Coordinate {
 
     fn neighbourhood(self) -> impl Iterator<Item=Coordinate> {
         let Coordinate { x, y, z } = self;
-        static DELTAS: [(i64, i64, i64); 26] = [(-1, -1, -1), (-1, -1, 0), (-1, -1, 1), (-1, 0, -1), (-1, 0, 0), (-1, 0, 1), (-1, 1, -1), (-1, 1, 0), (-1, 1, 1), (0, -1, -1), (0, -1, 0), (0, -1, 1), (0, 0, -1), (0, 0, 1), (0, 1, -1), (0, 1, 0), (0, 1, 1), (1, -1, -1), (1, -1, 0), (1, -1, 1), (1, 0, -1), (1, 0, 0), (1, 0, 1), (1, 1, -1), (1, 1, 0), (1, 1, 1)];
+        fn generate_deltas()-> [(i64, i64, i64); 26] {
+            let mut idx = 0;
+            let mut result = [(0,0,0); 26];
+            for dx in -1..=1 {
+                for dy in -1..=1 {
+                    for dz in -1..=1 {
+                        if dx != 0 || dy != 0 || dz != 0 {
+                            result[idx] = (dx, dy, dz);
+                            idx += 1
+                        }
+                    }
+                }
+            }
+
+            result
+        }
+
+        lazy_static! {
+            static ref DELTAS: [(i64, i64,i64); 26] = generate_deltas();
+        }
         struct Iter(Coordinate, usize);
 
         impl Iterator for Iter {
