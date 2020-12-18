@@ -2,10 +2,10 @@ use std::str::FromStr;
 
 use nom::branch::alt;
 use nom::bytes::complete::{tag, take, take_while, take_while1};
-use nom::character::complete::{digit1, multispace1, one_of};
+use nom::character::complete::{digit1, multispace1, one_of, char};
 use nom::combinator::{map, map_res};
 use nom::IResult;
-use nom::multi::many1;
+use nom::multi::{many1, separated_list0};
 use nom::sequence::delimited;
 
 #[derive(Debug)]
@@ -47,6 +47,10 @@ struct Expression {
 enum Operator {
     ADD,
     TIMES,
+}
+
+fn problem(input: &[u8])-> IResult<&[u8], Vec<Expression>> {
+    separated_list0(char('\n'), expression)(input)
 }
 
 fn expression(input: &[u8]) -> IResult<&[u8], Expression> {
@@ -127,12 +131,11 @@ fn evaluate_twisted(parts: &[ExpressionPart]) -> i64 {
 }
 
 pub fn solve(input: &str) {
-    let part1: i64 = input.lines().map(|line| {
-        let (_, parsed) = expression(line.as_bytes()).unwrap();
-        let row_result = evaluate_twisted(parsed.parts.as_slice());
-        row_result
+    let (_, parsed) = problem(input.as_bytes()).unwrap();
+    let result: i64 = parsed.iter().map(|expr|{
+        evaluate_twisted(&expr.parts)
     }).sum();
-    println!("Result: {}", part1)
+    println!("Result: {}", result)
 }
 
 pub const INPUT: &str = "((8 + 6 + 4 + 9 * 2 + 9) * 8 + 2 * (7 + 2 + 4 * 2 + 4) * 2 * 5) * 3
