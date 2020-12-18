@@ -7,15 +7,14 @@ struct Cube {
 }
 
 #[derive(Debug, Copy, Clone, Ord, PartialOrd, Eq, PartialEq)]
-struct Coordinate { z: i64, y: i64, x: i64 }
+struct Coordinate { w: i64, z: i64, y: i64, x: i64 }
 
 impl Coordinate {
     fn shift(self, delta: i64) -> Self {
-        Coordinate { x: self.x + delta, y: self.y + delta, z: self.z + delta }
+        Coordinate { w: self.w + delta, x: self.x + delta, y: self.y + delta, z: self.z + delta }
     }
 
     fn neighbourhood(self) -> impl Iterator<Item=Coordinate> {
-        let Coordinate { x, y, z } = self;
         fn generate_deltas()-> [(i64, i64, i64); 26] {
             let mut idx = 0;
             let mut result = [(0,0,0); 26];
@@ -45,10 +44,10 @@ impl Coordinate {
                 if self.1 >= DELTAS.len() {
                     None
                 } else {
-                    let Coordinate { x, y, z } = self.0;
+                    let Coordinate { w, x, y, z } = self.0;
                     let (dx, dy, dz) = DELTAS[self.1];
                     self.1 += 1;
-                    Some(Coordinate { x: x + dx, y: y + dy, z: z + dz })
+                    Some(Coordinate { w, x: x + dx, y: y + dy, z: z + dz })
                 }
             }
         }
@@ -87,6 +86,10 @@ impl Cube {
                         if self.current.y > self.end.y {
                             self.current.y = self.start.y;
                             self.current.z += 1;
+                            if self.current.z > self.end.z {
+                                self.current.z = self.start.z;
+                                self.current.w += 1;
+                            }
                         }
                     }
 
@@ -118,14 +121,16 @@ impl Cube {
     fn bounds(&self) -> (Coordinate, Coordinate) {
         self.active.iter().fold(
             (
-                Coordinate{ z: i64::MAX, y: i64::MAX, x: i64::MAX},
-                Coordinate{ z: i64::MIN, y: i64::MIN, x: i64::MIN},
+                Coordinate{ w: i64::MAX, z: i64::MAX, y: i64::MAX, x: i64::MAX},
+                Coordinate{ w: i64::MIN, z: i64::MIN, y: i64::MIN, x: i64::MIN},
             ), |(min, max), next| {
                 (Coordinate {
+                    w: next.w.min(min.w),
                     x: next.x.min(min.x),
                     y: next.y.min(min.y),
                     z: next.z.min(min.z),
                 }, Coordinate {
+                    w: next.w.max(max.w),
                     x: next.x.max(max.x),
                     y: next.y.max(max.y),
                     z: next.z.max(max.z),
@@ -138,7 +143,7 @@ impl Cube {
         input.split_whitespace().enumerate().for_each(|(row_idx, row)| {
             row.bytes().enumerate().for_each(|(col_idx, col)| {
                 if col == b'#' {
-                    self.active.insert(Coordinate { x: col_idx as i64, y: row_idx as i64, z: 0});
+                    self.active.insert(Coordinate { w: 0, x: col_idx as i64, y: row_idx as i64, z: 0});
                 }
             })
         })
