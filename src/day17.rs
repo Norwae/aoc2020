@@ -15,15 +15,17 @@ impl Coordinate {
     }
 
     fn neighbourhood(self) -> impl Iterator<Item=Coordinate> {
-        fn generate_deltas()-> [(i64, i64, i64); 26] {
+        fn generate_deltas()-> [(i64, i64, i64, i64); 80] {
             let mut idx = 0;
-            let mut result = [(0,0,0); 26];
-            for dx in -1..=1 {
-                for dy in -1..=1 {
-                    for dz in -1..=1 {
-                        if dx != 0 || dy != 0 || dz != 0 {
-                            result[idx] = (dx, dy, dz);
-                            idx += 1
+            let mut result = [(0, 0,0,0); 80];
+            for dw in -1..=1 {
+                for dx in -1..=1 {
+                    for dy in -1..=1 {
+                        for dz in -1..=1 {
+                            if dx != 0 || dy != 0 || dz != 0 || dw != 0 {
+                                result[idx] = (dx, dy, dz, dw);
+                                idx += 1
+                            }
                         }
                     }
                 }
@@ -33,7 +35,7 @@ impl Coordinate {
         }
 
         lazy_static! {
-            static ref DELTAS: [(i64, i64,i64); 26] = generate_deltas();
+            static ref DELTAS: [(i64, i64, i64,i64); 80] = generate_deltas();
         }
         struct Iter(Coordinate, usize);
 
@@ -45,9 +47,9 @@ impl Coordinate {
                     None
                 } else {
                     let Coordinate { w, x, y, z } = self.0;
-                    let (dx, dy, dz) = DELTAS[self.1];
+                    let (dx, dy, dz, dw) = DELTAS[self.1];
                     self.1 += 1;
-                    Some(Coordinate { w, x: x + dx, y: y + dy, z: z + dz })
+                    Some(Coordinate { w: w + dw, x: x + dx, y: y + dy, z: z + dz })
                 }
             }
         }
