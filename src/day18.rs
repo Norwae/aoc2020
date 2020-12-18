@@ -1,22 +1,22 @@
+use std::str::FromStr;
+
 use nom::branch::alt;
 use nom::bytes::complete::{tag, take, take_while, take_while1};
-use nom::character::{is_digit, is_space};
-use nom::character::streaming::one_of;
-use nom::combinator::{opt, peek};
+use nom::character::complete::{digit1, multispace1, one_of};
+use nom::combinator::{map, map_res};
 use nom::IResult;
 use nom::multi::many1;
 use nom::sequence::delimited;
 
-
 #[derive(Debug)]
 enum ExpressionPart {
     Val(Value),
-    Op(Operator)
+    Op(Operator),
 }
 
 impl ExpressionPart {
     fn force_value(&self) -> &Value {
-        if let Self::Val(value) = self { value } else { panic!("Not a value node")}
+        if let Self::Val(value) = self { value } else { panic!("Not a value node") }
     }
     fn force_operator(&self) -> Operator {
         if let Self::Op(operator) = self { *operator } else { panic!("Not an operator node") }
@@ -69,46 +69,33 @@ fn op_value(input: &[u8]) -> IResult<&[u8], (Operator, Value)> {
 }
 
 fn value(input: &[u8]) -> IResult<&[u8], Value> {
-    alt((parenthesis, simple_value))(input)
+    alt((parenthesis, number))(input)
 }
 
 fn parenthesis(input: &[u8]) -> IResult<&[u8], Value> {
-    let (input, _) = tag(b"(")(input)?;
-    let (input, expr) = expression(input)?;
-    let (input, _) = tag(b")")(input)?;
-
-    let value = Value::Parenthesis(Box::new(expr));
-    Ok((input, value))
+    map(
+        delimited(tag(b"("), expression, tag(b")")),
+        |expr| Value::Parenthesis(Box::new(expr)),
+    )(input)
 }
 
-fn simple_value(input: &[u8]) -> IResult<&[u8], Value> {
-    let (input, v) = number(input)?;
 
-    Ok((input, Value::Simple(v)))
-}
-
-fn number(input: &[u8]) -> IResult<&[u8], i64> {
-    let (input, digits) = take_while1(is_digit)(input)?;
-    let digits = String::from_utf8_lossy(digits);
-    let nr = digits.parse().expect("Digits but not a number?");
-
-    Ok((input, nr))
+fn number(input: &[u8]) -> IResult<&[u8], Value> {
+    map(
+        map_res(digit1, |s| i64::from_str(&String::from_utf8_lossy(s))),
+        |i| Value::Simple(i),
+    )(input)
 }
 
 fn operator(input: &[u8]) -> IResult<&[u8], Operator> {
-    let (input, _) = space(input)?;
-    let (input, next) = one_of("+*")(input)?;
-    let (input, _) = space(input)?;
-    match next {
-        '+' => Ok((input, Operator::ADD)),
-        '*' => Ok((input, Operator::TIMES)),
-        _ => unreachable!()
-    }
-}
-
-fn space(input: &[u8]) -> IResult<&[u8], ()> {
-    let (input, _) = take_while1(is_space)(input)?;
-    Ok((input, ()))
+    map(
+        delimited(multispace1, one_of("+*"), multispace1),
+        |next| match next {
+            '+' => Operator::ADD,
+            '*' => Operator::TIMES,
+            _ => unreachable!()
+        },
+    )(input)
 }
 
 fn evaluate_simple(expr: &[ExpressionPart]) -> i64 {
@@ -127,10 +114,10 @@ fn evaluate_simple(expr: &[ExpressionPart]) -> i64 {
 }
 
 fn evaluate_twisted(parts: &[ExpressionPart]) -> i64 {
-    parts.split(|ep|match ep {
+    parts.split(|ep| match ep {
         ExpressionPart::Op(Operator::TIMES) => true,
         _ => false
-    }).map(|slice|{
+    }).map(|slice| {
         let mut value = slice[0].force_value().numeric(evaluate_twisted);
         for i in (2..slice.len()).step_by(2) {
             value += slice[i].force_value().numeric(evaluate_twisted)
