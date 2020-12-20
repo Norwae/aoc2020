@@ -290,7 +290,9 @@ mod debug_vm;
 // mod day15;
 // mod day16;
 // mod day17;
-mod day18;
+// mod day18;
+// mod day19;
+mod day20;
 
 fn main() {
     day18::solve(day18::INPUT)
