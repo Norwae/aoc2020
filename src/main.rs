@@ -1,7 +1,3 @@
-#![feature(map_first_last)]
-#![feature(assoc_int_consts)]
-#![feature(vec_remove_item)]
-
 /*
 mod day1 {
     pub fn solve_basic(input: &[&str]) {
@@ -292,8 +288,9 @@ mod debug_vm;
 // mod day17;
 // mod day18;
 // mod day19;
-mod day20;
+// mod day20;
+mod day21;
 
 fn main() {
-    day18::solve(day18::INPUT)
+    day21::solve(day21::INPUT)
 }
