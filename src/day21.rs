@@ -95,8 +95,6 @@ pub fn solve(input: &str) {
     // Allergen("shellfish"): {Ingredient("nqbnmzx")},
     // Allergen("soy"): {Ingredient("ntggc")},
     // Allergen("wheat"): {Ingredient("znrzgs") }}
-
-
 }
 
 

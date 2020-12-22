@@ -1,190 +1,192 @@
 use std::borrow::Cow;
+use std::collections::HashMap;
+use std::mem;
+use std::process::exit;
 use std::str::FromStr;
 
-use nom::{IResult, Parser};
 use nom::branch::alt;
 use nom::bytes::complete::tag;
-use nom::character::complete::{alpha1, digit1, one_of, space1};
-use nom::combinator::{all_consuming, eof, map, map_res, rest};
-use nom::lib::std::collections::{HashMap, HashSet};
-use nom::multi::{many1, many_m_n, separated_list1};
+use nom::character::complete::{digit1, one_of, space0};
+use nom::combinator::{eof, map, peek, recognize};
+use nom::IResult;
+use nom::lib::std::collections::HashSet;
+use nom::multi::many1;
 use nom::sequence::{delimited, terminated, tuple};
-use nom::lib::std::hash::Hash;
-use std::mem;
 
 #[derive(Debug)]
-enum RuleDefinition<'a> {
-    Terminal(&'a [u8]),
-    Concat(Vec<u32>),
-    Alterative(Box<RuleDefinition<'a>>, Box<RuleDefinition<'a>>),
+struct Rule {
+    nr: u32,
+    definition: RuleDefinition,
 }
 
-fn merge<'a>(target: &mut HashSet<&'a[u8]>, source: HashSet<&'a[u8]>) {
-    source.into_iter().for_each(|slice|{
-        target.insert(slice);
-    })
-}
-
-fn single_element(elem: &[u8]) -> HashSet<&[u8]> {
-    let mut hs = HashSet::with_capacity(1);
-    hs.insert(elem);
-    hs
-}
-
-impl <'a> RuleDefinition<'a> {
-    fn matches(&self, others: &HashMap<u32, Rule>, input: &[u8]) -> bool {
-        let tails = self.matches0(others, input);
-        println!("Tails: {:?}", tails.iter().map(|slice|String::from_utf8_lossy(slice)));
-        tails.contains(&[0u8;0][..])
+impl Rule {
+    fn evaluate(&self, input: &str, all: &HashMap<u32, Rule>) -> bool {
+        let mut initial = [input].iter().cloned().collect();
+        self.definition.evaluate(initial, all).contains("")
     }
+}
 
-    fn matches0<'g>(&self, others: &HashMap<u32, Rule>, input: &'g [u8]) -> HashSet<&'g [u8]>{
+#[derive(Debug)]
+enum RuleDefinition {
+    Terminal(u8),
+    Concat(Vec<u32>),
+    Alterative(Box<RuleDefinition>, Box<RuleDefinition>),
+}
+
+impl RuleDefinition {
+    fn evaluate<'a>(&self, mut inputs: HashSet<&'a str>, all: &HashMap<u32, Rule>) -> HashSet<&'a str> {
+        inputs.remove("");
+        if inputs.is_empty() {
+            return inputs;
+        }
+
         match self {
-            RuleDefinition::Terminal(v) => if input.len() >= v.len() && *v == &input[..v.len()]  {
-                single_element(&input[v.len()..])
-            } else {
-                HashSet::new()
-            },
-            RuleDefinition::Concat(parts) => {
-                let mut this_input = single_element(input);
-                let mut next_input = HashSet::new();
-                for index in parts {
-                    let rule = &others[index];
-                    for input in this_input {
-                        let continues = rule.definition.matches0(others, input);
-                        continues.into_iter().for_each(|slice|{
-                            next_input.insert(slice);
-                        });
-                    }
-
-                    this_input = next_input;
-                    next_input = HashSet::new();
-                }
-                this_input
+            RuleDefinition::Terminal(expected) => {
+                inputs.iter().filter(|str|!str.is_empty() && str.as_bytes()[0] == *expected).map(|str|&str[1..]).collect()
             }
-            RuleDefinition::Alterative(a, b) => {
-                let mut cont = HashSet::new();
-                merge(&mut cont, a.matches0(others, input));
-                merge(&mut cont, b.matches0(others, input));
+            RuleDefinition::Concat(rule_indices) => {
+                let mut inputs = inputs;
 
-                println!("Found {} potential tails: {:?}", cont.len(), cont);
-                cont
+                for elem in rule_indices {
+                    let subrule = all.get(elem).unwrap();
+                    inputs = subrule.definition.evaluate(inputs, all)
+                }
+
+                inputs
+            }
+            RuleDefinition::Alterative(r1, r2) => {
+                let p1 = r1.evaluate(inputs.clone(), all);
+                let p2 = r2.evaluate(inputs, all);
+                p1.union(&p2).cloned().collect()
             }
         }
     }
 }
 
-#[derive(Debug)]
-struct Rule<'a> {
-    number: u32,
-    definition: RuleDefinition<'a>
+fn rule(input: &str) -> IResult<&str, Rule> {
+    map(
+        tuple((
+            nr,
+            tag(": "),
+            alt((alternative, concat, terminal)),
+            tag("\n")
+        )),
+        |(nr, _, definition, _)| Rule { nr, definition },
+    )(input)
 }
 
-impl <'a> Rule<'a> {
-    fn new(number: u32, definition: RuleDefinition<'a>) -> Self {
-        Self { number, definition }
-    }
+fn alternative(input: &str) -> IResult<&str, RuleDefinition> {
+    map(tuple((
+        concat,
+        tag("| "),
+        concat
+    )), |(part1, _, part2)| RuleDefinition::Alterative(Box::new(part1), Box::new(part2)))(input)
 }
 
-#[derive(Debug)]
-struct Problem<'a> {
-    rules: HashMap<u32, Rule<'a>>,
-    inputs: Vec<&'a [u8]>
+fn concat(input: &str) -> IResult<&str, RuleDefinition> {
+    map(
+        many1(
+            terminated(
+                nr,
+                space0,
+            )
+        ),
+        |rules| RuleDefinition::Concat(rules),
+    )(input)
 }
 
-impl Problem<'_> {
-
-    fn solve(&self) {
-        let count = self.inputs.iter().filter(|slice|{
-            let rule_0 = &self.rules[&0];
-            let is_match = rule_0.definition.matches(&self.rules, slice);
-            if is_match {
-                println!("{}", String::from_utf8_lossy(slice));
-            }
-            is_match
-        }).count();
-
-        println!("Count: {}", count)
-    }
+fn nr(input: &str) -> IResult<&str, u32> {
+    map(digit1, |input| u32::from_str(input).unwrap())(input)
 }
 
-fn problem(input: &[u8]) -> IResult<&[u8], Problem> {
+fn terminal(input: &str) -> IResult<&str, RuleDefinition> {
+    delimited(
+        tag("\""),
+        map(
+            one_of("ab"),
+            |x| RuleDefinition::Terminal(x as u8),
+        ),
+        tag("\""),
+    )(input)
+}
+
+fn problem(input: &str) -> IResult<&str, (HashMap<u32, Rule>, Vec<&str>)> {
     map(
         tuple((
             many1(rule),
             tag("\n"),
-            many1(test_input),
-            eof)),
-        |(rules, _, inputs, _)| {
-            let rules = rules.into_iter().map(|r|(r.number, r)).collect();
-            Problem { rules, inputs}
-        }
-    )(input)
-}
+            many1(
+                terminated(
+                    recognize(
+                        many1(one_of("ab"))
+                    ),
+                    alt((tag("\n"), eof)))))),
+        |(rules_vec, _, inputs)| {
+            let mut rules = rules_vec.into_iter().map(|r| (r.nr, r)).collect();
 
-
-fn test_input(input: &[u8]) -> IResult<&[u8], &[u8]> {
-    terminated(alpha1, tag("\n"))(input)
-}
-
-fn rule(input: &[u8]) -> IResult<&[u8], Rule> {
-    map(
-        tuple((rule_number, tag(b": "), rule_definition, tag(b"\n"))),
-        |(number, _, definition, _)| Rule::new(number, definition),
-    )(input)
-}
-
-fn rule_definition(input: &[u8]) -> IResult<&[u8], RuleDefinition> {
-    alt((terminal, alternative, concat))(input)
-}
-
-fn concat(input: &[u8]) -> IResult<&[u8], RuleDefinition> {
-    map(
-        separated_list1(tag(" "), rule_number),
-        |l| RuleDefinition::Concat(l),
-    )(input)
-}
-
-fn alternative(input: &[u8]) -> IResult<&[u8], RuleDefinition> {
-    map(
-        tuple((concat, tag(" | "), concat)),
-        |(r1, _, r2)| RuleDefinition::Alterative(Box::new(r1), Box::new(r2)),
-    )(input)
-}
-
-fn rule_number(input: &[u8]) -> IResult<&[u8], u32> {
-    map_res(
-        digit1,
-        |b| u32::from_str(&String::from_utf8_lossy(b)),
-    )(input)
-}
-
-fn terminal(input: &[u8]) -> IResult<&[u8], RuleDefinition> {
-    map(delimited(tag(b"\""), alpha1, tag(b"\"")),
-        |c| RuleDefinition::Terminal(c),
+            (rules, inputs)
+        },
     )(input)
 }
 
 pub fn solve(input: &str) {
-    let (_, mut parsed) = problem(input.as_bytes()).unwrap();
-    parsed.rules.insert(8, rule("8: 42 | 42 8\n".as_bytes()).unwrap().1);
-    parsed.rules.insert(11, rule("11: 42 31 | 42 11 31\n".as_bytes()).unwrap().1);
-    parsed.solve()
+    let (_, (rules, inputs)) = problem(input).unwrap();
+    let mut rules = rules;
+    rules.insert(8, rule("8: 42 | 42 8\n").unwrap().1);
+    rules.insert(11, rule("11: 42 31 | 42 11 31\n").unwrap().1);
+
+    let root = rules.get(&0).unwrap();
+    let nr_of_matches = inputs.iter().filter(|str|root.evaluate(str, &rules)).count();
+    println!("Matched {} lines", nr_of_matches)
 }
 
+pub const EXAMPLE_INPUT: &str = r#"42: 9 14 | 10 1
+9: 14 27 | 1 26
+10: 23 14 | 28 1
+1: "a"
+11: 42 31
+5: 1 14 | 15 1
+19: 14 1 | 14 14
+12: 24 14 | 19 1
+16: 15 1 | 14 14
+31: 14 17 | 1 13
+6: 14 14 | 1 14
+2: 1 24 | 14 4
+0: 8 11
+13: 14 3 | 1 12
+15: 1 | 14
+17: 14 2 | 1 7
+23: 25 1 | 22 14
+28: 16 1
+4: 1 1
+20: 14 14 | 1 15
+3: 5 14 | 16 1
+27: 1 6 | 14 18
+14: "b"
+21: 14 1 | 1 14
+25: 1 1 | 1 14
+22: 14 14
+8: 42
+26: 14 22 | 1 20
+18: 15 15
+7: 14 5 | 1 21
+24: 14 1
 
-pub const EXAMPLE_INPUT: &str = r#"0: 4 1 5
-1: 2 3 | 3 2
-2: 4 4 | 5 5
-3: 4 5 | 5 4
-4: "a"
-5: "b"
-
-ababbb
-bababa
-abbbab
-aaabbb
-aaaabbb
+abbbbbabbbaaaababbaabbbbabababbbabbbbbbabaaaa
+bbabbbbaabaabba
+babbbbaabbbbbabbbbbbaabaaabaaa
+aaabbbbbbaaaabaababaabababbabaaabbababababaaa
+bbbbbbbaaaabbbbaaabbabaaa
+bbbababbbbaaaaaaaabbababaaababaabab
+ababaaaaaabaaab
+ababaaaaabbbaba
+baabbaaaabbaaaababbaababb
+abbbbabbbbaaaababbbbbbaaaababb
+aaaaabbaabaaaaababaa
+aaaabbaaaabbaaa
+aaaabbaabbaaaaaaabbbabbbaaabbaabaaa
+babaaabbbaaabaababbaabababaaab
+aabbbbbaabbbaaaaaabbbbbababaaaaabbaaabba
 "#;
 
 pub const INPUT: &str = r#"0: 8 11
@@ -323,9 +325,6 @@ pub const INPUT: &str = r#"0: 8 11
 133: 5 100 | 92 69
 130: 92 52 | 5 123
 
-aaaaaaababbbbaabbbaababbbbaabbaaaaabbaaabababaabaaaabaaaaababaa
-"#;
-const foo: &str="
 baabbabbbabbaaabababaabbbaaaaababaaaabab
 bbabbbaaababaaaaaaabaaab
 aabbbbbababbbbbbbbbbababbbabbbbb
@@ -806,4 +805,4 @@ aabbaabaababaabaaabaaabaabbbbaaabaabbbab
 ababaababaababbbaabbbaaa
 abbaaaaaabbabbabbaabaaba
 abbbbbaabaaaaabbaaaaaabb
-";
+"#;
