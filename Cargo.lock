@@ -16,6 +16,7 @@ dependencies = [
  "lazy_static",
  "nom",
  "num",
+ "num-bigint",
  "regex",
 ]
 
