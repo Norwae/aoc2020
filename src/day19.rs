@@ -42,7 +42,7 @@ impl RuleDefinition {
 
         match self {
             RuleDefinition::Terminal(expected) => {
-                inputs.iter().filter(|str|!str.is_empty() && str.as_bytes()[0] == *expected).map(|str|&str[1..]).collect()
+                inputs.iter().filter(|str|str.as_bytes()[0] == *expected).map(|str|&str[1..]).collect()
             }
             RuleDefinition::Concat(rule_indices) => {
                 let mut inputs = inputs;
