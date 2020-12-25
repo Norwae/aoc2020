@@ -1,3 +1,8 @@
+#![feature(linked_list_prepend)]
+#![feature(linked_list_cursors)]
+#![feature(duration_consts_2)]
+#![feature(fixed_size_array)]
+#![feature(box_syntax)]
 /*
 mod day1 {
     pub fn solve_basic(input: &[&str]) {
@@ -275,7 +280,7 @@ mod day6;
 mod day7;
 
 */
-mod debug_vm;
+//mod debug_vm;
 // mod day8;
 // mod day9;
 // mod day10;
@@ -287,11 +292,14 @@ mod debug_vm;
 // mod day16;
 // mod day17;
 // mod day18;
-mod day19;
-// mod day20;
+// mod day19;
+mod day20;
 // mod day21;
 // mod day22;
+mod day23;
+// mod day24;
+mod day25;
 
 fn main() {
-    day19::solve(day19::INPUT)
+    day23::solve()
 }
