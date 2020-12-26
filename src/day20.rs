@@ -1,3 +1,4 @@
+use std::fmt::Display;
 use std::str::FromStr;
 
 use nom::{IResult, Parser};
@@ -5,14 +6,13 @@ use nom::branch::alt;
 use nom::bytes::complete::tag;
 use nom::character::complete::{digit1, one_of};
 use nom::combinator::{eof, map, verify};
-use nom::lib::std::collections::Bound;
+use nom::lib::std::collections::{Bound, HashSet};
+use nom::lib::std::fmt::Formatter;
 use nom::lib::std::ops::{Index, IndexMut};
 use nom::multi::many1;
 use nom::sequence::{terminated, tuple};
 
 use crate::day20::Modification::*;
-use std::fmt::Display;
-use nom::lib::std::fmt::Formatter;
 
 #[derive(Debug, PartialEq, Eq, Copy, Clone)]
 enum Modification {
@@ -33,7 +33,7 @@ const NO_MIRROR_FLIPPING: [Modification; 2] = [RotateLeft, RotateRight];
 const NOT_FLIPPING: [Modification; 4] = [Original, MirrorX, MirrorY, Rotate2];
 const NO_MIRROR_NOT_FLIPPING: [Modification; 2] = [Original, Rotate2];
 
-trait MapFragment : Index<(usize, usize), Output=bool> {
+trait MapFragment: Index<(usize, usize), Output=bool> {
     fn rows(&self) -> usize;
     fn cols(&self) -> usize;
 }
@@ -85,7 +85,7 @@ impl Display for Tile {
         f.write_fmt(format_args!("Combined Tile {:?}:\n", self.codes))?;
         for row in 0..self.rows {
             for col in 0..self.cols {
-                let next_char  = if self[(row, col)] {  "#"  } else { "." };
+                let next_char = if self[(row, col)] { "#" } else { "." };
                 f.write_str(next_char)?;
             }
             f.write_str("\n")?;
@@ -124,13 +124,13 @@ impl MapFragment for TileView<'_> {
     }
 }
 
-impl <'a> TileView<'a> {
+impl<'a> TileView<'a> {
     fn new(tile: &'a Tile, row_offset: usize, col_offset: usize, rows: usize, cols: usize) -> Self {
-        Self { rows, cols, row_offset , col_offset, tile }
+        Self { rows, cols, row_offset, col_offset, tile }
     }
 }
 
-fn symmetric_equivalent<M: MapFragment>(mine: &M, other: &Tile ) -> bool {
+fn symmetric_equivalent<M: MapFragment>(mine: &M, other: &Tile) -> bool {
     let mut slicer = 4..4;
     if mine.rows() == other.rows && mine.cols() == other.cols {
         slicer.start = 0;
@@ -145,7 +145,7 @@ fn symmetric_equivalent<M: MapFragment>(mine: &M, other: &Tile ) -> bool {
 
         for i in 0..other.rows {
             for j in 0..other.cols {
-                if mine[(i,j)] != other[(i,j)] {
+                if mine[(i, j)] != other[(i, j)] {
                     continue 'modification;
                 }
             }
@@ -158,7 +158,6 @@ fn symmetric_equivalent<M: MapFragment>(mine: &M, other: &Tile ) -> bool {
 }
 
 impl Tile {
-
     fn modify(&self, modification: Modification) -> Self {
         let mut contents = Vec::with_capacity(self.contents.len());
         let (rows, cols) = match modification {
@@ -254,6 +253,41 @@ impl Tile {
         deduplicate(target)
     }
 
+    fn serpent_tiles(&self) -> Vec<(usize, usize)> {
+        /*
+         01234567890123456789
+       0 ..................#.
+       1 #....##....##....###
+       2 .#..#..#..#..#..#...
+        */
+        const SERPENT_CHECK_OFFSETS: [(usize, usize); 15] =
+            [
+                (0, 18),
+                (1, 0), (1, 5), (1, 6), (1, 11), (1, 12), (1, 17), (1, 18), (1, 19),
+                (2, 1), (2, 4), (2, 7), (2, 10), (2, 13), (2, 16)
+            ];
+        let mut all_tiles = HashSet::new();
+
+        for start_row in 0..=self.rows - 3 {
+            'next_offset: for start_col in 0..=self.cols - 20 {
+                let view = TileView::new(self, start_row, start_col, 3, 20);
+                for offset in &SERPENT_CHECK_OFFSETS {
+                    if !view[*offset] {
+                        continue 'next_offset;
+                    }
+                }
+
+                for (row, col) in &SERPENT_CHECK_OFFSETS {
+                    all_tiles.insert((row + start_row, col + start_col));
+                }
+            }
+        }
+
+        let mut result = all_tiles.into_iter().collect::<Vec<_>>();
+        result.sort();
+        result
+    }
+
     fn merge_at_top_row(self: &Tile, t2: &Tile, mods1: &[Modification], mods2: &[Modification], target: &mut Vec<Tile>) {
         for m1 in mods1 {
             for m2 in mods2 {
@@ -276,7 +310,6 @@ impl Tile {
 }
 
 
-
 fn deduplicate<T: Eq>(tiles: Vec<T>) -> Vec<T> {
     tiles.into_iter().fold(
         Vec::new(),
@@ -285,7 +318,7 @@ fn deduplicate<T: Eq>(tiles: Vec<T>) -> Vec<T> {
                 v.push(next);
             }
             v
-        }
+        },
     )
 }
 
@@ -332,35 +365,53 @@ pub fn solve() {
     for i in 0..4 {
         let view = TileView::new(&solution, 0, 0, 10, 10);
 
-        checksum *= single_tiles.iter().find_map((|x| if symmetric_equivalent(&view, x) { Some(x.codes[0])} else {None})).unwrap() as u64;
+        checksum *= single_tiles.iter().find_map((|x| if symmetric_equivalent(&view, x) { Some(x.codes[0]) } else { None })).unwrap() as u64;
         solution = solution.modify(RotateRight)
     }
 
     println!("Image checksum is {}", checksum);
-    let mut sea_monster_map = Tile {
-        codes: vec![0],
-        cols: solution.cols - 24,
-        rows: solution.rows - 24,
-        contents: Vec::with_capacity(96 * 96)
-    };
+    let sea_monster_map = remove_borders(solution);
 
-    for tile_row in 0..12 {
-        for tile_col in 0..12 {
-            for data_row in 1..9 {
-                let actual_row = 10 * tile_row + data_row;
-                for data_col in 1..9 {
-                    let actual_col = 10 * tile_col + data_col;
-                    sea_monster_map.contents.push(solution[(actual_row, actual_col)])
-                }
-            }
-        }
-    }
     assert_eq!(sea_monster_map.contents.len(), sea_monster_map.cols * sea_monster_map.rows);
 
-    println!("The monster map: {}", sea_monster_map)
+    let potential_roughs = sea_monster_map.contents.iter().filter(|x|**x).count();
+    println!("There are overall {} potential rough tiles", potential_roughs);
+    for m in &ALL {
+        let modified = sea_monster_map.modify(*m);
+        let exclude = modified.serpent_tiles().len();
+        println!("When viewed with modification {:?}, there are {} rough tiles", m, potential_roughs - exclude);
+    }
+    println!("{}", sea_monster_map)
 }
 
-fn full_combination(seed_tiles_1: &Vec<Tile>, seed_tiles_2: &Vec<Tile>) -> Vec<Tile>{
+fn remove_borders(solution: Tile) -> Tile {
+    let rows = solution.rows - (2 * solution.rows / 10);
+    let cols = solution.cols - (2 * solution.cols / 10);
+    let mut sea_monster_map = Tile {
+        codes: vec![0],
+        rows, cols,
+        contents: Vec::with_capacity(rows * cols),
+    };
+
+    for row in 0..solution.rows {
+        let row_discriminant = row % 10;
+        if row_discriminant == 0 || row_discriminant == 9 {
+            continue
+        }
+        for col in 0..solution.cols {
+            let col_discriminant = col % 10;
+            if col_discriminant == 0 || col_discriminant == 9 {
+                continue
+            }
+
+            sea_monster_map.contents.push(solution[(row, col)]);
+        }
+    }
+
+    sea_monster_map
+}
+
+fn full_combination(seed_tiles_1: &Vec<Tile>, seed_tiles_2: &Vec<Tile>) -> Vec<Tile> {
     let mut temp = Vec::new();
     for seed_left in seed_tiles_1 {
         for seed_right in seed_tiles_2 {
@@ -371,17 +422,11 @@ fn full_combination(seed_tiles_1: &Vec<Tile>, seed_tiles_2: &Vec<Tile>) -> Vec<T
     println!("Generated {} candidates (size {}) from {}x{} seeds",
              generated_tiles.len(),
              seed_tiles_1.first().unwrap().contents.len() *
-                seed_tiles_2.first().unwrap().contents.len(),
+                 seed_tiles_2.first().unwrap().contents.len(),
              seed_tiles_1.len(),
              seed_tiles_2.len());
     generated_tiles
 }
-
-const CANONICAL_SERPENT: &str = "Tile 9999:
-..................#.
-#....##....##....###
-.#..#..#..#..#..#...
-";
 
 #[cfg(test)]
 mod test {
@@ -398,10 +443,117 @@ mod test {
         }
     }
 
+    const CANONICAL_SERPENT: &str = "Tile 9999:
+..................#.
+#....##....##....###
+.#..#..#..#..#..#...
+";/*
+01234567890123456789 */
+
+    #[test]
+    fn trim_borders() {
+        let original = must_parse("Tile 0:
+#...##.#....###..####.#.#####.
+..#.#..#.####...#.#..#..######
+.###....#...#....#....#.......
+###.##.##..#.#.#..########....
+.###.#######...#.#######.#..#.
+.##.#....###.##.###..#...#.##.
+#...##########.#...##.#####.##
+.....#..###...##..#...#.###...
+#.####...###..#.......#.......
+#.##...##...##.#..#...#.###...
+#.##...##...##.#..#...#.###...
+##..#.##....#..###.###.##....#
+##.####....#.####.#...#.###..#
+####.#.#.....#.########.#..###
+.#.####......##..##..######.##
+.##..##.#.....#...###.#.#.#...
+....#..#.##.#.#.##.##.###.###.
+..#.#......#.##.#..##.###.##..
+####.#.....#..#.##...######...
+...#.#.#.####.##.#...##...####
+...#.#.#.####.##.#...##...####
+..#.#.###...##.##.###..#.##..#
+..####.#####.#...##..#.#..#.##
+#..#.#..#....#.#.#...####.###.
+.#..####.##..#.#.#.#####.###..
+.#####..#######...#..##....##.
+##.##..#....#...#....####...#.
+#.#.###....##..##....####.##.#
+#...###.....##...#.....#..####
+..#.#....###.#.#.......##.....
+");
+        let slimmed = remove_borders(original);
+        assert_eq!(slimmed, must_parse("Tile 0:
+.#.#..#.##...#.##..#####
+###....#.#....#..#......
+##.##.###.#.#..######...
+###.#####...#.#####.#..#
+##.#....#.##.####...#.##
+...########.#....#####.#
+....#..#...##..#.#.###..
+.####...#..#.....#......
+#..#.##..#..###.#.##....
+#.####..#.####.#.#.###..
+###.#.#...#.######.#..##
+#.####....##..########.#
+##..##.#...#...#.#.#.#..
+...#..#..#.#.##..###.###
+.#.#....#.##.#...###.##.
+###.#...#..#.##.######..
+.#.#.###.##.##.#..#.##..
+.####.###.#...###.#..#.#
+..#.#..#..#.#.#.####.###
+#..####...#.#.#.###.###.
+#####..#####...###....##
+#.##..#..#...#..####...#
+.#.###..##..##..####.##.
+...###...##...#...#..###
+"))
+    }
+
     #[test]
     fn find_sea_serpent() {
         let canonical_serpent = must_parse(CANONICAL_SERPENT);
+        let serpent_indices = canonical_serpent.serpent_tiles();
+        assert_eq!(serpent_indices, vec![
+            (0, 18),
+            (1, 0), (1, 5), (1, 6), (1, 11), (1, 12), (1, 17), (1, 18), (1, 19),
+            (2, 1), (2, 4), (2, 7), (2, 10), (2, 13), (2, 16),
+        ]);
+    }
 
+    #[test]
+    fn find_two_serpents() {
+        let example = must_parse("Tile 9999:
+.####...#####..#...###..
+#####..#..#.#.####..#.#.
+.#.#...#.###...#.##.##..
+#.#.##.###.#.##.##.#####
+..##.###.####..#.####.##
+...#.#..##.##...#..#..##
+#.##.#..#.#..#..##.#.#..
+.###.##.....#...###.#...
+#.####.#.#....##.#..#.#.
+##...#..#....#..#...####
+..#.##...###..#.#####..#
+....#.##.#.#####....#...
+..##.##.###.....#.##..#.
+#...#...###..####....##.
+.#.##...#.##.#.#.###...#
+#.###.#..####...##..#...
+#.###...#.##...#.######.
+.###.###.#######..#####.
+..##.#..#..#.#######.###
+#.#..##.########..#..##.
+#.#####..#.#...##..#....
+#....##..#.#########..##
+#...#.....#..##...###.##
+#..###....##.#...##.##.#
+");
+        let serpent_indices = example.serpent_tiles();
+        assert_eq!(serpent_indices.len(), 30);
     }
 
     #[test]
@@ -601,7 +753,7 @@ mod test {
         let merged = left.merged_with(&right);
         assert_eq!(merged.len(), 1);
         assert_eq!(merged[0], Tile {
-            codes: vec![1,2],
+            codes: vec![1, 2],
             ..must_parse("Tile 1:
 .#.#
 #.#.
@@ -611,7 +763,8 @@ mod test {
 ####
 ####
 ####
-")});
+")
+        });
     }
 
     #[test]
@@ -631,15 +784,16 @@ mod test {
         let result = left.merged_with(&right);
         assert_eq!(result.len(), 1);
         println!("{}", &result[0]);
-        assert!(result.contains(&must_parse_combined(&[1,2],"Tile 1:
+        assert!(result.contains(&must_parse_combined(&[1, 2], "Tile 1:
 #.##.
 .....
 ##..#
 ##..#
 #.#..
-"
+",
         )));
     }
+
     #[test]
     fn merge_multiple_steps() {
         let part1 = must_parse("Tile 1:
@@ -655,10 +809,10 @@ mod test {
         let part3 = must_parse("Tile 3:
 #####
 ");
-        let merged_complete = part1.merged_with(&part2).iter().flat_map(|partial|partial.merged_with(&part3).into_iter()).collect::<Vec<_>>();
+        let merged_complete = part1.merged_with(&part2).iter().flat_map(|partial| partial.merged_with(&part3).into_iter()).collect::<Vec<_>>();
 
         assert!(merged_complete.len() > 0);
-        assert!(merged_complete.contains(&must_parse_combined(&[1,2,3],"Tile 9:
+        assert!(merged_complete.contains(&must_parse_combined(&[1, 2, 3], "Tile 9:
 .#...
 .###.
 #####
