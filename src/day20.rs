@@ -33,10 +33,9 @@ const NO_MIRROR_FLIPPING: [Modification; 2] = [RotateLeft, RotateRight];
 const NOT_FLIPPING: [Modification; 4] = [Original, MirrorX, MirrorY, Rotate2];
 const NO_MIRROR_NOT_FLIPPING: [Modification; 2] = [Original, Rotate2];
 
-trait MapFragment : Index<(usize, usize)> {
+trait MapFragment : Index<(usize, usize), Output=bool> {
     fn rows(&self) -> usize;
     fn cols(&self) -> usize;
-    fn contents(&self) -> &[bool];
 }
 
 #[derive(Debug, Eq, Clone)]
@@ -54,10 +53,6 @@ impl MapFragment for Tile {
 
     fn cols(&self) -> usize {
         self.cols
-    }
-
-    fn contents(&self) -> &[bool] {
-        &self.contents
     }
 }
 
@@ -101,21 +96,25 @@ impl Display for Tile {
 }
 
 
-struct TileView {
+struct TileView<'a> {
+    tile: &'a Tile,
+    row_offset: usize,
+    col_offset: usize,
     rows: usize,
     cols: usize,
-    contents: Vec<bool>
 }
 
-impl Index<(usize, usize)> for TileView {
+impl Index<(usize, usize)> for TileView<'_> {
     type Output = bool;
 
     fn index(&self, (row, col): (usize, usize)) -> &Self::Output {
-        &self.contents[row * self.cols + col]
+        let row = row + self.row_offset;
+        let col = col + self.col_offset;
+        &self.tile[(row, col)]
     }
 }
 
-impl MapFragment for TileView {
+impl MapFragment for TileView<'_> {
     fn rows(&self) -> usize {
         self.rows
     }
@@ -123,22 +122,11 @@ impl MapFragment for TileView {
     fn cols(&self) -> usize {
         self.cols
     }
-
-    fn contents(&self) -> &[bool] {
-        &self.contents
-    }
 }
 
-impl TileView {
-    fn new(parent: &Tile, offset_row: usize, offset_col: usize, rows: usize, cols: usize) -> Self {
-        let mut contents = Vec::with_capacity(rows * cols);
-        for i in 0..rows {
-            for j in 0..cols {
-                contents.push(parent[(i + offset_row,j + offset_col)]);
-            }
-        }
-
-        Self { rows, cols, contents }
+impl <'a> TileView<'a> {
+    fn new(tile: &'a Tile, row_offset: usize, col_offset: usize, rows: usize, cols: usize) -> Self {
+        Self { rows, cols, row_offset , col_offset, tile }
     }
 }
 
@@ -152,12 +140,18 @@ fn symmetric_equivalent<M: MapFragment>(mine: &M, other: &Tile ) -> bool {
         slicer.end = 8;
     }
 
-    for m in &ALL[slicer] {
-        let other_modified = other.modify(*m);
+    'modification: for m in &ALL[slicer] {
+        let other = other.modify(*m);
 
-        if  other_modified.contents == mine.contents()  {
-            return true;
+        for i in 0..other.rows {
+            for j in 0..other.cols {
+                if mine[(i,j)] != other[(i,j)] {
+                    continue 'modification;
+                }
+            }
         }
+
+        return true;
     }
 
     false
