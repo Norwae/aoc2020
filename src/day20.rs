@@ -36,6 +36,7 @@ const NO_MIRROR_NOT_FLIPPING: [Modification; 2] = [Original, Rotate2];
 trait MapFragment : Index<(usize, usize)> {
     fn rows(&self) -> usize;
     fn cols(&self) -> usize;
+    fn contents(&self) -> &[bool];
 }
 
 #[derive(Debug, Eq, Clone)]
@@ -46,12 +47,18 @@ struct Tile {
     cols: usize,
 }
 
-struct TileView<'a> {
-    tile: &'a Tile,
-    offset_row: usize,
-    offset_col: usize,
-    rows: usize,
-    cols: usize
+impl MapFragment for Tile {
+    fn rows(&self) -> usize {
+        self.rows
+    }
+
+    fn cols(&self) -> usize {
+        self.cols
+    }
+
+    fn contents(&self) -> &[bool] {
+        &self.contents
+    }
 }
 
 impl PartialEq for Tile {
@@ -94,20 +101,61 @@ impl Display for Tile {
 }
 
 
-fn symmetric_equivalent(mine: &Tile, other: &Tile ) -> bool {
-    if mine.rows == other.rows && mine.cols == other.cols {
+struct TileView {
+    rows: usize,
+    cols: usize,
+    contents: Vec<bool>
+}
+
+impl Index<(usize, usize)> for TileView {
+    type Output = bool;
+
+    fn index(&self, (row, col): (usize, usize)) -> &Self::Output {
+        &self.contents[row * self.cols + col]
+    }
+}
+
+impl MapFragment for TileView {
+    fn rows(&self) -> usize {
+        self.rows
+    }
+
+    fn cols(&self) -> usize {
+        self.cols
+    }
+
+    fn contents(&self) -> &[bool] {
+        &self.contents
+    }
+}
+
+impl TileView {
+    fn new(parent: &Tile, offset_row: usize, offset_col: usize, rows: usize, cols: usize) -> Self {
+        let mut contents = Vec::with_capacity(rows * cols);
+        for i in 0..rows {
+            for j in 0..cols {
+                contents.push(parent[(i + offset_row,j + offset_col)]);
+            }
+        }
+
+        Self { rows, cols, contents }
+    }
+}
+
+fn symmetric_equivalent<M: MapFragment>(mine: &M, other: &Tile ) -> bool {
+    if mine.rows() == other.rows && mine.cols() == other.cols {
         for m in &NOT_FLIPPING {
             let other_modified = other.modify(*m);
-            if mine.contents == other_modified.contents {
+            if other_modified.contents == mine.contents() {
                 return true;
             }
         }
     }
 
-    if mine.cols == other.rows && mine.rows == other.cols {
+    if mine.cols() == other.rows && mine.rows() == other.cols {
         for m in &FLIPPING {
             let other_modified = other.modify(*m);
-            if mine.contents == other_modified.contents {
+            if  other_modified.contents == mine.contents()  {
                 return true;
             }
         }
@@ -289,14 +337,9 @@ pub fn solve() {
     let mut checksum: u64 = 1;
 
     for i in 0..4 {
-        let mut sliced = single_tiles.first().unwrap().clone();
-        for i in 0..sliced.rows {
-            for j in 0..sliced.cols {
-                sliced[(i,j)] = solution[(i, j)];
-            }
-        }
+        let view = TileView::new(&solution, 0, 0, 10, 10);
 
-        checksum *= single_tiles.iter().find_map((|x| if symmetric_equivalent(x, &sliced) { Some(x.codes[0])} else {None})).unwrap() as u64;
+        checksum *= single_tiles.iter().find_map((|x| if symmetric_equivalent(&view, x) { Some(x.codes[0])} else {None})).unwrap() as u64;
         solution = solution.modify(RotateRight)
     }
 
