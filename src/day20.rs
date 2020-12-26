@@ -1,168 +1,634 @@
-use std::array::FixedSizeArray;
 use std::str::FromStr;
 
 use nom::{IResult, Parser};
 use nom::branch::alt;
 use nom::bytes::complete::tag;
 use nom::character::complete::{digit1, one_of};
-use nom::combinator::{eof, map, recognize};
+use nom::combinator::{eof, map, verify};
 use nom::lib::std::collections::Bound;
+use nom::lib::std::ops::{Index, IndexMut};
+use nom::multi::many1;
 use nom::sequence::{terminated, tuple};
 
-#[derive(Debug, Eq, PartialEq, Copy, Clone)]
+use crate::day20::Modification::*;
+use std::fmt::Display;
+use nom::lib::std::fmt::Formatter;
+
+#[derive(Debug, PartialEq, Eq, Copy, Clone)]
 enum Modification {
     Original,
     MirrorX,
     MirrorY,
-    Rotate1,
     Rotate2,
-    Rotate3,
-    Rotate1MirrorX,
-    Rotate3MirrorX,
+    RotateRight,
+    RotateLeft,
+    RotateRightMirrorX,
+    RotateLeftMirrorX,
     // rest is equivalent
 }
 
-fn mirror(i: u16) -> u16 {
-    static BYTE_MIRRORS: [u8; 256] = [
-        0b0000_0000, 0b1000_0000, 0b0100_0000, 0b1100_0000, 0b0010_0000, 0b1010_0000, 0b0110_0000, 0b1110_0000, 0b0001_0000, 0b1001_0000, 0b0101_0000, 0b1101_0000, 0b0011_0000, 0b1011_0000, 0b0111_0000, 0b1111_0000,
-        0b0000_1000, 0b1000_1000, 0b0100_1000, 0b1100_1000, 0b0010_1000, 0b1010_1000, 0b0110_1000, 0b1110_1000, 0b0001_1000, 0b1001_1000, 0b0101_1000, 0b1101_1000, 0b0011_1000, 0b1011_1000, 0b0111_1000, 0b1111_1000,
-        0b0000_0100, 0b1000_0100, 0b0100_0100, 0b1100_0100, 0b0010_0100, 0b1010_0100, 0b0110_0100, 0b1110_0100, 0b0001_0100, 0b1001_0100, 0b0101_0100, 0b1101_0100, 0b0011_0100, 0b1011_0100, 0b0111_0100, 0b1111_0100,
-        0b0000_1100, 0b1000_1100, 0b0100_1100, 0b1100_1100, 0b0010_1100, 0b1010_1100, 0b0110_1100, 0b1110_1100, 0b0001_1100, 0b1001_1100, 0b0101_1100, 0b1101_1100, 0b0011_1100, 0b1011_1100, 0b0111_1100, 0b1111_1100,
-        0b0000_0010, 0b1000_0010, 0b0100_0010, 0b1100_0010, 0b0010_0010, 0b1010_0010, 0b0110_0010, 0b1110_0010, 0b0001_0010, 0b1001_0010, 0b0101_0010, 0b1101_0010, 0b0011_0010, 0b1011_0010, 0b0111_0010, 0b1111_0010,
-        0b0000_1010, 0b1000_1010, 0b0100_1010, 0b1100_1010, 0b0010_1010, 0b1010_1010, 0b0110_1010, 0b1110_1010, 0b0001_1010, 0b1001_1010, 0b0101_1010, 0b1101_1010, 0b0011_1010, 0b1011_1010, 0b0111_1010, 0b1111_1010,
-        0b0000_0110, 0b1000_0110, 0b0100_0110, 0b1100_0110, 0b0010_0110, 0b1010_0110, 0b0110_0110, 0b1110_0110, 0b0001_0110, 0b1001_0110, 0b0101_0110, 0b1101_0110, 0b0011_0110, 0b1011_0110, 0b0111_0110, 0b1111_0110,
-        0b0000_1110, 0b1000_1110, 0b0100_1110, 0b1100_1110, 0b0010_1110, 0b1010_1110, 0b0110_1110, 0b1110_1110, 0b0001_1110, 0b1001_1110, 0b0101_1110, 0b1101_1110, 0b0011_1110, 0b1011_1110, 0b0111_1110, 0b1111_1110,
-        0b0000_0001, 0b1000_0001, 0b0100_0001, 0b1100_0001, 0b0010_0001, 0b1010_0001, 0b0110_0001, 0b1110_0001, 0b0001_0001, 0b1001_0001, 0b0101_0001, 0b1101_0001, 0b0011_0001, 0b1011_0001, 0b0111_0001, 0b1111_0001,
-        0b0000_1001, 0b1000_1001, 0b0100_1001, 0b1100_1001, 0b0010_1001, 0b1010_1001, 0b0110_1001, 0b1110_1001, 0b0001_1001, 0b1001_1001, 0b0101_1001, 0b1101_1001, 0b0011_1001, 0b1011_1001, 0b0111_1001, 0b1111_1001,
-        0b0000_0101, 0b1000_0101, 0b0100_0101, 0b1100_0101, 0b0010_0101, 0b1010_0101, 0b0110_0101, 0b1110_0101, 0b0001_0101, 0b1001_0101, 0b0101_0101, 0b1101_0101, 0b0011_0101, 0b1011_0101, 0b0111_0101, 0b1111_0101,
-        0b0000_1101, 0b1000_1101, 0b0100_1101, 0b1100_1101, 0b0010_1101, 0b1010_1101, 0b0110_1101, 0b1110_1101, 0b0001_1101, 0b1001_1101, 0b0101_1101, 0b1101_1101, 0b0011_1101, 0b1011_1101, 0b0111_1101, 0b1111_1101,
-        0b0000_0011, 0b1000_0011, 0b0100_0011, 0b1100_0011, 0b0010_0011, 0b1010_0011, 0b0110_0011, 0b1110_0011, 0b0001_0011, 0b1001_0011, 0b0101_0011, 0b1101_0011, 0b0011_0011, 0b1011_0011, 0b0111_0011, 0b1111_0011,
-        0b0000_1011, 0b1000_1011, 0b0100_1011, 0b1100_1011, 0b0010_1011, 0b1010_1011, 0b0110_1011, 0b1110_1011, 0b0001_1011, 0b1001_1011, 0b0101_1011, 0b1101_1011, 0b0011_1011, 0b1011_1011, 0b0111_1011, 0b1111_1011,
-        0b0000_0111, 0b1000_0111, 0b0100_0111, 0b1100_0111, 0b0010_0111, 0b1010_0111, 0b0110_0111, 0b1110_0111, 0b0001_0111, 0b1001_0111, 0b0101_0111, 0b1101_0111, 0b0011_0111, 0b1011_0111, 0b0111_0111, 0b1111_0111,
-        0b0000_1111, 0b1000_1111, 0b0100_1111, 0b1100_1111, 0b0010_1111, 0b1010_1111, 0b0110_1111, 0b1110_1111, 0b0001_1111, 0b1001_1111, 0b0101_1111, 0b1101_1111, 0b0011_1111, 0b1011_1111, 0b0111_1111, 0b1111_1111,
-    ];
-    let bytes = i.to_le_bytes();
-    let mirror_bytes = [BYTE_MIRRORS[bytes[1] as usize], BYTE_MIRRORS[bytes[0] as usize]];
-    u16::from_le_bytes(mirror_bytes)
+const ALL: [Modification; 8] = [Original, MirrorX, MirrorY, Rotate2, RotateRight, RotateLeft, RotateRightMirrorX, RotateLeftMirrorX];
+const FLIPPING: [Modification; 4] = [RotateLeft, RotateRight, RotateLeftMirrorX, RotateRightMirrorX];
+const NO_MIRROR_FLIPPING: [Modification; 2] = [RotateLeft, RotateRight];
+const NOT_FLIPPING: [Modification; 4] = [Original, MirrorX, MirrorY, Rotate2];
+const NO_MIRROR_NOT_FLIPPING: [Modification; 2] = [Original, Rotate2];
+
+trait MapFragment : Index<(usize, usize)> {
+    fn rows(&self) -> usize;
+    fn cols(&self) -> usize;
 }
 
-#[derive(Debug, Copy, Clone)]
-struct BoundaryCodes {
-    north: u16,
-    east: u16,
-    south: u16,
-    west: u16,
+#[derive(Debug, Eq, Clone)]
+struct Tile {
+    codes: Vec<u32>,
+    contents: Vec<bool>,
+    rows: usize,
+    cols: usize,
 }
 
-impl BoundaryCodes {
-    fn apply_modification(&self, modify: Modification) -> BoundaryCodes {
-        match modify {
-            Modification::Original => *self,
-            Modification::MirrorX => Self { north: mirror(self.north), south: mirror(self.south), east: mirror(self.west), west: mirror(self.east) },
-            Modification::MirrorY => Self { north: mirror(self.south), south: mirror(self.north), east: mirror(self.east), west: mirror(self.west) },
-            Modification::Rotate1 => Self { north: self.west, south: self.east, east: self.north, west: self.south },
-            Modification::Rotate2 => Self { north: self.south, south: self.north, east: self.west, west: self.east },
-            Modification::Rotate3 => Self { north: self.east, south: self.west, east: self.south, west: self.north },
-            Modification::Rotate1MirrorX => Self {north: mirror(self.west), south: mirror(self.east), east: mirror(self.south), west: mirror(self.north)},
-            Modification::Rotate3MirrorX  => Self {north: mirror(self.east), south: mirror(self.west), east: mirror(self.north), west: mirror(self.south)},
+struct TileView<'a> {
+    tile: &'a Tile,
+    offset_row: usize,
+    offset_col: usize,
+    rows: usize,
+    cols: usize
+}
+
+impl PartialEq for Tile {
+    fn eq(&self, other: &Self) -> bool {
+        if other.codes != self.codes {
+            return false;
         }
+
+        symmetric_equivalent(self, other)
     }
 }
 
-#[derive(Debug)]
-struct Tile {
-    id: u32,
-    contents: [[bool; 10]; 10],
-    boundary: BoundaryCodes,
+impl Index<(usize, usize)> for Tile {
+    type Output = bool;
+
+    fn index(&self, (row, col): (usize, usize)) -> &Self::Output {
+        &self.contents[row * self.cols + col]
+    }
+}
+
+impl IndexMut<(usize, usize)> for Tile {
+    fn index_mut(&mut self, (row, col): (usize, usize)) -> &mut Self::Output {
+        &mut self.contents[row * self.cols + col]
+    }
+}
+
+impl Display for Tile {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.write_fmt(format_args!("Combined Tile {:?}:\n", self.codes))?;
+        for row in 0..self.rows {
+            for col in 0..self.cols {
+                let next_char  = if self[(row, col)] {  "#"  } else { "." };
+                f.write_str(next_char)?;
+            }
+            f.write_str("\n")?;
+        }
+
+        Ok(())
+    }
+}
+
+
+fn symmetric_equivalent(mine: &Tile, other: &Tile ) -> bool {
+    if mine.rows == other.rows && mine.cols == other.cols {
+        for m in &NOT_FLIPPING {
+            let other_modified = other.modify(*m);
+            if mine.contents == other_modified.contents {
+                return true;
+            }
+        }
+    }
+
+    if mine.cols == other.rows && mine.rows == other.cols {
+        for m in &FLIPPING {
+            let other_modified = other.modify(*m);
+            if mine.contents == other_modified.contents {
+                return true;
+            }
+        }
+    }
+
+    false
 }
 
 impl Tile {
-    fn new(id: u32, contents: [[bool; 10]; 10]) -> Self {
-        let north = boundary_code_from(&contents[0]);
-        let south = boundary_code_from(&[contents[9][9], contents[9][8], contents[9][7], contents[9][6], contents[9][5], contents[9][4], contents[9][3], contents[9][2], contents[9][1], contents[9][0]]);
-        let west = boundary_code_from(&[contents[9][0], contents[8][0], contents[7][0], contents[6][0], contents[5][0], contents[4][0], contents[3][0], contents[2][0], contents[1][0], contents[0][0]]);
-        let east = boundary_code_from(&[contents[0][9], contents[1][9], contents[2][9], contents[3][9], contents[4][9], contents[5][9], contents[6][9], contents[7][9], contents[8][9], contents[9][9]]);
-        Self {
-            id,
-            contents,
-            boundary: BoundaryCodes {
-                north,
-                south,
-                east,
-                west,
-            },
+
+    fn modify(&self, modification: Modification) -> Self {
+        let mut contents = Vec::with_capacity(self.contents.len());
+        let (rows, cols) = match modification {
+            Original => {
+                contents.extend_from_slice(self.contents.as_slice());
+                (self.rows, self.cols)
+            }
+            MirrorX => {
+                for row in 0..self.rows {
+                    for col in (0..self.cols).rev() {
+                        contents.push(self[(row, col)]);
+                    }
+                }
+                (self.rows, self.cols)
+            }
+            MirrorY => {
+                for row in (0..self.rows).rev() {
+                    for col in 0..self.cols {
+                        contents.push(self[(row, col)]);
+                    }
+                }
+                (self.rows, self.cols)
+            }
+            RotateRight => {
+                for col in 0..self.cols {
+                    for row in (0..self.rows).rev() {
+                        contents.push(self[(row, col)]);
+                    }
+                }
+                (self.cols, self.rows)
+            }
+            RotateRightMirrorX => {
+                for col in 0..self.cols {
+                    for row in 0..self.rows {
+                        contents.push(self[(row, col)]);
+                    }
+                }
+                (self.cols, self.rows)
+            }
+            Rotate2 => {
+                for row in (0..self.rows).rev() {
+                    for col in (0..self.cols).rev() {
+                        contents.push(self[(row, col)]);
+                    }
+                }
+                (self.rows, self.cols)
+            }
+            RotateLeft => {
+                for col in (0..self.cols).rev() {
+                    for row in 0..self.rows {
+                        contents.push(self[(row, col)]);
+                    }
+                }
+                (self.cols, self.rows)
+            }
+            RotateLeftMirrorX => {
+                for col in (0..self.cols).rev() {
+                    for row in (0..self.rows).rev() {
+                        contents.push(self[(row, col)]);
+                    }
+                }
+                (self.cols, self.rows)
+            }
+        };
+
+        Self { rows, cols, contents, codes: self.codes.clone() }
+    }
+
+    fn merged_with(&self, other: &Self) -> Vec<Self> {
+        let mut target = Vec::new();
+        for code in &self.codes {
+            if other.codes.contains(code) {
+                return target;
+            }
+        }
+
+        if self.cols == other.cols {
+            self.merge_at_top_row(other, &NO_MIRROR_NOT_FLIPPING[..], &NOT_FLIPPING, &mut target);
+        }
+
+        if self.rows == other.rows {
+            self.merge_at_top_row(other, &NO_MIRROR_FLIPPING[..], &FLIPPING[..], &mut target);
+        }
+
+        if self.rows == other.cols {
+            self.merge_at_top_row(other, &NO_MIRROR_FLIPPING[..], &NOT_FLIPPING[..], &mut target);
+        }
+
+        if self.cols == other.rows {
+            self.merge_at_top_row(other, &NO_MIRROR_NOT_FLIPPING[..], &FLIPPING[..], &mut target);
+        }
+
+        deduplicate(target)
+    }
+
+    fn merge_at_top_row(self: &Tile, t2: &Tile, mods1: &[Modification], mods2: &[Modification], target: &mut Vec<Tile>) {
+        for m1 in mods1 {
+            for m2 in mods2 {
+                let upper = self.modify(*m1);
+                let lower = t2.modify(*m2);
+                if upper.contents[upper.contents.len() - upper.cols..] == lower.contents[..upper.cols] {
+                    let mut codes = upper.codes;
+                    codes.extend_from_slice(lower.codes.as_slice());
+                    codes.sort();
+                    let rows = upper.rows + lower.rows;
+                    let cols = upper.cols;
+                    let mut contents = upper.contents;
+                    contents.extend_from_slice(lower.contents.as_slice());
+
+                    target.push(Self { codes, rows, cols, contents })
+                }
+            }
         }
     }
 }
 
-fn boundary_code_from(border: &[bool; 10]) -> u16 {
-    let mut v = 0;
-    let mut mask = 1;
-    for boolean in border.iter().rev() {
-        if *boolean {
-            v |= mask;
+
+
+fn deduplicate<T: Eq>(tiles: Vec<T>) -> Vec<T> {
+    tiles.into_iter().fold(
+        Vec::new(),
+        |mut v, next| {
+            if !v.contains(&next) {
+                v.push(next);
+            }
+            v
         }
-        mask <<= 1
-    }
-
-    return v;
+    )
 }
 
-fn t10<T: Copy>(i: T) -> (T, T, T, T, T, T, T, T, T, T) {
-    (i, i, i, i, i, i, i, i, i, i)
-}
-
-fn t10Map<T, O, F>((i0, i1, i2, i3, i4, i5, i6, i7, i8, i9): (T, T, T, T, T, T, T, T, T, T), m: F) -> [O; 10] where F: Fn(T) -> O {
-    [m(i0), m(i1), m(i2), m(i3), m(i4), m(i5), m(i6), m(i7), m(i8), m(i9)]
-}
-
-fn tiles(input: &str) -> IResult<&str, Vec<Tile>> {
-    let mut result = Vec::new();
-    let mut rest = input;
-    while !rest.is_empty() {
-        let (next, tile) = tile(rest)?;
-        rest = next;
-        result.push(tile)
-    }
-    Ok((rest, result))
-}
-
-fn tile(input: &str) -> IResult<&str, Tile> {
-    map(
-        tuple((
-            tag("Tile "),
-            digit1,
-            tag(":\n"),
-            tile_data
-        )),
-        |(_, nr, _, contents)| {
-            Tile::new(
-                u32::from_str(nr).unwrap(),
-                contents,
+fn parse(input: &str) -> IResult<&str, Tile> {
+    map(tuple((
+        tag("Tile "),
+        digit1,
+        tag(":\n"),
+        many1(
+            terminated(
+                many1(
+                    map(
+                        one_of(".#"),
+                        |c| c == '#',
+                    )
+                ),
+                tag("\n"),
             )
-        },
-    )(input)
-}
-
-fn tile_data(input: &str) -> IResult<&str, [[bool; 10]; 10]> {
-    terminated(
-        map(
-            tuple(t10(tile_line)),
-            |i| t10Map(i, |x| x),
         ),
-        alt((tag("\n"), eof)),
-    )(input)
+        alt((tag("\n"), eof))
+    )), |(_, nr, _, lines, _)| {
+        let rows = lines.len();
+        let cols = lines[0].len();
+        let contents = lines.concat();
+        let codes = vec![u32::from_str(nr).unwrap()];
+        Tile { rows, cols, contents, codes }
+    })(input)
 }
 
-fn tile_line(input: &str) -> IResult<&str, [bool; 10]> {
-    terminated(map(
-        tuple(t10(|i| one_of("#.")(i))),
-        |i| t10Map(i, |x| x == '#'),
-    ), tag("\n"))(input)
+pub fn solve() {
+    let (_, single_tiles) = many1(parse)(INPUT).unwrap();
+    let tile_combos_2 = full_combination(&single_tiles, &single_tiles);
+    let tile_combos_4 = full_combination(&tile_combos_2, &tile_combos_2);
+    let tile_combos_8 = full_combination(&tile_combos_4, &tile_combos_4);
+    let tile_combos_12 = full_combination(&tile_combos_8, &tile_combos_4);
+    let tile_combos_24 = full_combination(&tile_combos_12, &tile_combos_12);
+    let tile_combos_48 = full_combination(&tile_combos_24, &tile_combos_24);
+    let tile_combos_72 = full_combination(&tile_combos_48, &tile_combos_24);
+
+    let full_combo = full_combination(&tile_combos_72, &tile_combos_72);
+    let mut solution = full_combo.first().unwrap().clone();
+    let mut checksum: u64 = 1;
+
+    for i in 0..4 {
+        let mut sliced = single_tiles.first().unwrap().clone();
+        for i in 0..sliced.rows {
+            for j in 0..sliced.cols {
+                sliced[(i,j)] = solution[(i, j)];
+            }
+        }
+
+        checksum *= single_tiles.iter().find_map((|x| if symmetric_equivalent(x, &sliced) { Some(x.codes[0])} else {None})).unwrap() as u64;
+        solution = solution.modify(RotateRight)
+    }
+
+    println!("Image checksum is {}", checksum);
+    let mut sea_monster_map = Tile {
+        codes: vec![0],
+        cols: solution.cols - 24,
+        rows: solution.rows - 24,
+        contents: Vec::with_capacity(96 * 96)
+    };
+
+    for tile_row in 0..12 {
+        for tile_col in 0..12 {
+            for data_row in 1..9 {
+                let actual_row = 10 * tile_row + data_row;
+                for data_col in 1..9 {
+                    let actual_col = 10 * tile_col + data_col;
+                    sea_monster_map.contents.push(solution[(actual_row, actual_col)])
+                }
+            }
+        }
+    }
+    assert_eq!(sea_monster_map.contents.len(), sea_monster_map.cols * sea_monster_map.rows);
+
+    println!("The monster map: {}", sea_monster_map)
 }
 
-pub fn solve(input: &str) {
-    println!("Tiles: {:?}", tiles(input).unwrap().1[0])
+fn full_combination(seed_tiles_1: &Vec<Tile>, seed_tiles_2: &Vec<Tile>) -> Vec<Tile>{
+    let mut temp = Vec::new();
+    for seed_left in seed_tiles_1 {
+        for seed_right in seed_tiles_2 {
+            temp.append(&mut seed_left.merged_with(seed_right));
+        }
+    }
+    let generated_tiles = deduplicate(temp);
+    println!("Generated {} candidates (size {}) from {}x{} seeds",
+             generated_tiles.len(),
+             seed_tiles_1.first().unwrap().contents.len() *
+                seed_tiles_2.first().unwrap().contents.len(),
+             seed_tiles_1.len(),
+             seed_tiles_2.len());
+    generated_tiles
+}
+
+const CANONICAL_SERPENT: &str = "Tile 9999:
+..................#.
+#....##....##....###
+.#..#..#..#..#..#...
+";
+
+#[cfg(test)]
+mod test {
+    use crate::day20::*;
+
+    fn must_parse(input: &str) -> Tile {
+        parse(input).unwrap().1
+    }
+
+    fn must_parse_combined(sources: &[u32], input: &str) -> Tile {
+        Tile {
+            codes: sources.to_vec(),
+            ..must_parse(input)
+        }
+    }
+
+    #[test]
+    fn find_sea_serpent() {
+        let canonical_serpent = must_parse(CANONICAL_SERPENT);
+
+    }
+
+    #[test]
+    fn parse_a_tile() {
+        let (rest, parsed_tile) = parse("Tile 3:
+####
+##.#
+#..#
+.##.
+").unwrap();
+        assert_eq!("", rest);
+        assert_eq!(parsed_tile, Tile {
+            codes: vec![3],
+            contents: vec![
+                true, true, true, true,
+                true, true, false, true,
+                true, false, false, true,
+                false, true, true, false
+            ],
+            rows: 4,
+            cols: 4,
+        })
+    }
+
+    #[test]
+    fn modify_original() {
+        let orig = must_parse("Tile 848:
+#...#
+.#...
+..#..
+");
+        assert_eq!(orig.modify(Modification::Original), orig)
+    }
+
+    #[test]
+    fn modify_mirror_x() {
+        let orig = must_parse("Tile 848:
+#...#
+.#...
+..#..
+");
+        let rotated = must_parse("Tile 848:
+#...#
+...#.
+..#..
+");
+        assert_eq!(orig.modify(Modification::MirrorX), rotated)
+    }
+
+    #[test]
+    fn modify_mirror_y() {
+        let orig = must_parse("Tile 848:
+#...#
+.#...
+..#..
+");
+        let rotated = must_parse("Tile 848:
+..#..
+.#...
+#...#
+");
+        assert_eq!(orig.modify(Modification::MirrorY), rotated)
+    }
+
+
+    #[test]
+    fn modify_rotate_right() {
+        let orig = must_parse("Tile 848:
+#...#
+.#...
+..#..
+");
+        let rotated = must_parse("Tile 848:
+..#
+.#.
+#..
+...
+..#
+");
+        assert_eq!(orig.modify(Modification::RotateRight), rotated)
+    }
+
+
+    #[test]
+    fn modify_rotate_right_mirror_x() {
+        let orig = must_parse("Tile 848:
+#...#
+.#...
+..#..
+");
+        let rotated = must_parse("Tile 848:
+#..
+.#.
+..#
+...
+#..
+");
+        assert_eq!(orig.modify(Modification::RotateRightMirrorX), rotated)
+    }
+
+    #[test]
+    fn modify_rotate_2() {
+        let orig = must_parse("Tile 848:
+#...#
+.#...
+..#..
+");
+        let rotated = must_parse("Tile 848:
+..#..
+...#.
+#...#
+");
+        assert_eq!(orig.modify(Modification::Rotate2), rotated)
+    }
+
+    #[test]
+    fn modify_rotate_left() {
+        let orig = must_parse("Tile 848:
+#...#
+.#...
+..#..
+");
+        let rotated = must_parse("Tile 848:
+#..
+...
+..#
+.#.
+#..
+");
+        assert_eq!(orig.modify(Modification::RotateLeft), rotated)
+    }
+
+    #[test]
+    fn modify_rotate_left_mirror_x() {
+        let orig = must_parse("Tile 848:
+#...#
+.#...
+..#..
+");
+        let rotated = must_parse("Tile 848:
+..#
+...
+#..
+.#.
+..#
+");
+        assert_eq!(orig.modify(Modification::RotateLeftMirrorX), rotated)
+    }
+
+    #[test]
+    fn merge_mismatched_sizes() {
+        let left = must_parse("Tile 1:
+#..
+#..
+.##
+");
+        let right = must_parse("Tile 2:
+.##.
+#..#
+#..#
+.##.
+");
+        assert!(left.merged_with(&right).is_empty());
+    }
+
+    #[test]
+    fn merge_compatibility_not_okay() {
+        let left = must_parse("Tile 1:
+.#.#
+#.#.
+.#.#
+#.#.
+");
+        let right = must_parse("Tile 2:
+.##.
+#..#
+#..#
+.##.
+");
+        assert!(left.merged_with(&right).is_empty());
+    }
+
+    #[test]
+    fn merge_compatible_simple() {
+        let left = must_parse("Tile 1:
+.#.#
+#.#.
+.#.#
+#.#.
+");
+        let right = must_parse("Tile 2:
+#.#.
+####
+####
+####
+");
+        let merged = left.merged_with(&right);
+        assert_eq!(merged.len(), 1);
+        assert_eq!(merged[0], Tile {
+            codes: vec![1,2],
+            ..must_parse("Tile 1:
+.#.#
+#.#.
+.#.#
+#.#.
+#.#.
+####
+####
+####
+")});
+    }
+
+    #[test]
+    fn merge_compatible_non_square() {
+        let left = must_parse("Tile 1:
+##..#
+.....
+#.##.
+");
+        let right = must_parse("Tile 2:
+##
+#.
+.#
+..
+#.
+");
+        let result = left.merged_with(&right);
+        assert_eq!(result.len(), 1);
+        println!("{}", &result[0]);
+        assert!(result.contains(&must_parse_combined(&[1,2],"Tile 1:
+#.##.
+.....
+##..#
+##..#
+#.#..
+"
+        )));
+    }
+    #[test]
+    fn merge_multiple_steps() {
+        let part1 = must_parse("Tile 1:
+###
+##.
+.#.
+");
+        let part2 = must_parse("Tile 2:
+..
+.#
+##
+");
+        let part3 = must_parse("Tile 3:
+#####
+");
+        let merged_complete = part1.merged_with(&part2).iter().flat_map(|partial|partial.merged_with(&part3).into_iter()).collect::<Vec<_>>();
+
+        assert!(merged_complete.len() > 0);
+        assert!(merged_complete.contains(&must_parse_combined(&[1,2,3],"Tile 9:
+.#...
+.###.
+#####
+#####
+")));
+    }
 }
 
 pub const EXAMPLE_INPUT: &str = "Tile 2311:

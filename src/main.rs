@@ -296,10 +296,10 @@ mod day7;
 mod day20;
 // mod day21;
 // mod day22;
-mod day23;
+// mod day23;
 // mod day24;
-mod day25;
+// mod day25;
 
 fn main() {
-    day23::solve()
+    day20::solve()
 }
