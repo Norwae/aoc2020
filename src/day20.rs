@@ -36,6 +36,55 @@ const NO_MIRROR_NOT_FLIPPING: [Modification; 2] = [Original, Rotate2];
 trait MapFragment: Index<(usize, usize), Output=bool> {
     fn rows(&self) -> usize;
     fn cols(&self) -> usize;
+
+    fn for_every_index<F>(&self, mut f: F) where F: FnMut(bool, (usize, usize)) {
+        for i in 0..self.rows() {
+            for j in 0..self.cols() {
+                f(self[(i, j)], (i, j))
+            }
+        }
+    }
+}
+
+#[derive(Debug)]
+struct Derivation<'a> {
+    tile: &'a Tile,
+    modifier: Modification,
+}
+
+impl Index<(usize, usize)> for Derivation<'_> {
+    type Output = bool;
+
+    fn index(&self, (row, col): (usize, usize)) -> &Self::Output {
+        let actual_idx = match self.modifier {
+            Original => (row, col),
+            MirrorX => (row, (self.tile.cols - col) - 1),
+            MirrorY => ((self.tile.rows - row) - 1, col),
+            Rotate2 => ((self.tile.rows - row) - 1, (self.tile.cols - col) - 1),
+            RotateLeft => (col, (self.tile.cols - row) - 1),
+            RotateRight => ((self.tile.rows - col) - 1, row),
+            RotateRightMirrorX => (col, row),
+            RotateLeftMirrorX => ((self.tile.rows - col) - 1, (self.tile.cols - row) - 1)
+        };
+
+        &self.tile[actual_idx]
+    }
+}
+
+impl MapFragment for Derivation<'_> {
+    fn rows(&self) -> usize {
+        match self.modifier {
+            Original | MirrorY | MirrorX | Rotate2 => self.tile.rows,
+            _ => self.tile.cols
+        }
+    }
+
+    fn cols(&self) -> usize {
+        match self.modifier {
+            Original | MirrorY | MirrorX | Rotate2 => self.tile.cols,
+            _ => self.tile.rows
+        }
+    }
 }
 
 #[derive(Debug, Eq, Clone)]
@@ -95,16 +144,16 @@ impl Display for Tile {
     }
 }
 
-
-struct TileView<'a> {
-    tile: &'a Tile,
+#[derive(Debug)]
+struct TileView<'a, F> {
+    tile: &'a F,
     row_offset: usize,
     col_offset: usize,
     rows: usize,
     cols: usize,
 }
 
-impl Index<(usize, usize)> for TileView<'_> {
+impl<F: MapFragment> Index<(usize, usize)> for TileView<'_, F> {
     type Output = bool;
 
     fn index(&self, (row, col): (usize, usize)) -> &Self::Output {
@@ -114,7 +163,7 @@ impl Index<(usize, usize)> for TileView<'_> {
     }
 }
 
-impl MapFragment for TileView<'_> {
+impl<F: MapFragment> MapFragment for TileView<'_, F> {
     fn rows(&self) -> usize {
         self.rows
     }
@@ -124,8 +173,10 @@ impl MapFragment for TileView<'_> {
     }
 }
 
-impl<'a> TileView<'a> {
-    fn new(tile: &'a Tile, row_offset: usize, col_offset: usize, rows: usize, cols: usize) -> Self {
+impl<'a, T: MapFragment> TileView<'a, T> {
+    fn new(tile: &'a T, row_offset: usize, col_offset: usize, rows: usize, cols: usize) -> Self {
+        assert!(rows <= tile.rows() - row_offset);
+        assert!(cols <= tile.cols() - col_offset);
         Self { rows, cols, row_offset, col_offset, tile }
     }
 }
@@ -142,88 +193,57 @@ fn symmetric_equivalent<M: MapFragment>(mine: &M, other: &Tile) -> bool {
 
     'modification: for m in &ALL[slicer] {
         let other = other.modify(*m);
+        let mut mismatched = false;
 
-        for i in 0..other.rows {
-            for j in 0..other.cols {
-                if mine[(i, j)] != other[(i, j)] {
-                    continue 'modification;
-                }
-            }
+        mine.for_every_index(|my_value, idx| mismatched |= my_value != other[idx]);
+        if !mismatched {
+            return true;
         }
-
-        return true;
     }
 
     false
 }
 
-impl Tile {
-    fn modify(&self, modification: Modification) -> Self {
-        let mut contents = Vec::with_capacity(self.contents.len());
-        let (rows, cols) = match modification {
-            Original => {
-                contents.extend_from_slice(self.contents.as_slice());
-                (self.rows, self.cols)
-            }
-            MirrorX => {
-                for row in 0..self.rows {
-                    for col in (0..self.cols).rev() {
-                        contents.push(self[(row, col)]);
-                    }
-                }
-                (self.rows, self.cols)
-            }
-            MirrorY => {
-                for row in (0..self.rows).rev() {
-                    for col in 0..self.cols {
-                        contents.push(self[(row, col)]);
-                    }
-                }
-                (self.rows, self.cols)
-            }
-            RotateRight => {
-                for col in 0..self.cols {
-                    for row in (0..self.rows).rev() {
-                        contents.push(self[(row, col)]);
-                    }
-                }
-                (self.cols, self.rows)
-            }
-            RotateRightMirrorX => {
-                for col in 0..self.cols {
-                    for row in 0..self.rows {
-                        contents.push(self[(row, col)]);
-                    }
-                }
-                (self.cols, self.rows)
-            }
-            Rotate2 => {
-                for row in (0..self.rows).rev() {
-                    for col in (0..self.cols).rev() {
-                        contents.push(self[(row, col)]);
-                    }
-                }
-                (self.rows, self.cols)
-            }
-            RotateLeft => {
-                for col in (0..self.cols).rev() {
-                    for row in 0..self.rows {
-                        contents.push(self[(row, col)]);
-                    }
-                }
-                (self.cols, self.rows)
-            }
-            RotateLeftMirrorX => {
-                for col in (0..self.cols).rev() {
-                    for row in (0..self.rows).rev() {
-                        contents.push(self[(row, col)]);
-                    }
-                }
-                (self.cols, self.rows)
-            }
-        };
 
-        Self { rows, cols, contents, codes: self.codes.clone() }
+fn serpent_tiles<T: MapFragment>(tile: &T) -> Vec<(usize, usize)> {
+    /*
+     01234567890123456789
+   0 ..................#.
+   1 #....##....##....###
+   2 .#..#..#..#..#..#...
+    */
+    const SERPENT_CHECK_OFFSETS: [(usize, usize); 15] =
+        [
+            (0, 18),
+            (1, 0), (1, 5), (1, 6), (1, 11), (1, 12), (1, 17), (1, 18), (1, 19),
+            (2, 1), (2, 4), (2, 7), (2, 10), (2, 13), (2, 16)
+        ];
+    let mut all_tiles = HashSet::new();
+
+    for start_row in 0..=tile.rows() - 3 {
+        'next_offset: for start_col in 0..=tile.cols() - 20 {
+            let view = TileView::new(tile, start_row, start_col, 3, 20);
+            for offset in &SERPENT_CHECK_OFFSETS {
+                if !view[*offset] {
+                    continue 'next_offset;
+                }
+            }
+
+            for (row, col) in &SERPENT_CHECK_OFFSETS {
+                all_tiles.insert((row + start_row, col + start_col));
+            }
+        }
+    }
+
+    let mut result = all_tiles.into_iter().collect::<Vec<_>>();
+    result.sort();
+    result
+}
+
+
+impl Tile {
+    fn modify(&self, modifier: Modification) -> Derivation {
+        Derivation { tile: self, modifier }
     }
 
     fn merged_with(&self, other: &Self) -> Vec<Self> {
@@ -253,54 +273,27 @@ impl Tile {
         deduplicate(target)
     }
 
-    fn serpent_tiles(&self) -> Vec<(usize, usize)> {
-        /*
-         01234567890123456789
-       0 ..................#.
-       1 #....##....##....###
-       2 .#..#..#..#..#..#...
-        */
-        const SERPENT_CHECK_OFFSETS: [(usize, usize); 15] =
-            [
-                (0, 18),
-                (1, 0), (1, 5), (1, 6), (1, 11), (1, 12), (1, 17), (1, 18), (1, 19),
-                (2, 1), (2, 4), (2, 7), (2, 10), (2, 13), (2, 16)
-            ];
-        let mut all_tiles = HashSet::new();
-
-        for start_row in 0..=self.rows - 3 {
-            'next_offset: for start_col in 0..=self.cols - 20 {
-                let view = TileView::new(self, start_row, start_col, 3, 20);
-                for offset in &SERPENT_CHECK_OFFSETS {
-                    if !view[*offset] {
-                        continue 'next_offset;
-                    }
-                }
-
-                for (row, col) in &SERPENT_CHECK_OFFSETS {
-                    all_tiles.insert((row + start_row, col + start_col));
-                }
-            }
-        }
-
-        let mut result = all_tiles.into_iter().collect::<Vec<_>>();
-        result.sort();
-        result
-    }
-
     fn merge_at_top_row(self: &Tile, t2: &Tile, mods1: &[Modification], mods2: &[Modification], target: &mut Vec<Tile>) {
         for m1 in mods1 {
             for m2 in mods2 {
                 let upper = self.modify(*m1);
                 let lower = t2.modify(*m2);
-                if upper.contents[upper.contents.len() - upper.cols..] == lower.contents[..upper.cols] {
-                    let mut codes = upper.codes;
-                    codes.extend_from_slice(lower.codes.as_slice());
+                let cols = upper.cols();
+                assert_eq!(upper.cols(), lower.cols());
+                let bottom_row_upper = TileView::new(&upper, upper.rows() - 1, 0, 1, cols);
+                let top_row_lower = TileView::new(&lower, 0, 0, 1, cols);
+
+                if (0..cols).all(|idx| bottom_row_upper[(0, idx)] ==
+                    top_row_lower[(0, idx)]) {
+                    let mut codes = self.codes.clone();
+                    codes.extend_from_slice(t2.codes.as_slice());
                     codes.sort();
-                    let rows = upper.rows + lower.rows;
-                    let cols = upper.cols;
-                    let mut contents = upper.contents;
-                    contents.extend_from_slice(lower.contents.as_slice());
+                    let rows = upper.rows() + lower.rows();
+                    let cols = upper.cols();
+                    let mut contents = Vec::with_capacity(rows * cols);
+
+                    upper.for_every_index(|v, _| contents.push(v));
+                    lower.for_every_index(|v, _| contents.push(v));
 
                     target.push(Self { codes, rows, cols, contents })
                 }
@@ -359,14 +352,14 @@ pub fn solve() {
     let tile_combos_72 = full_combination(&tile_combos_48, &tile_combos_24);
 
     let full_combo = full_combination(&tile_combos_72, &tile_combos_72);
-    let mut solution = full_combo.first().unwrap().clone();
+    let solution = full_combo.first().unwrap().clone();
     let mut checksum: u64 = 1;
 
-    for i in 0..4 {
-        let view = TileView::new(&solution, 0, 0, 10, 10);
+    for m in &[Original, RotateRight, Rotate2, RotateLeft] {
+        let solution = solution.modify(*m);
+        let solution = TileView::new(&solution, 0, 0, 10, 10);
 
-        checksum *= single_tiles.iter().find_map((|x| if symmetric_equivalent(&view, x) { Some(x.codes[0]) } else { None })).unwrap() as u64;
-        solution = solution.modify(RotateRight)
+        checksum *= single_tiles.iter().find_map(|x| if symmetric_equivalent(&solution, x) { Some(x.codes[0]) } else { None }).unwrap() as u64;
     }
 
     println!("Image checksum is {}", checksum);
@@ -374,11 +367,11 @@ pub fn solve() {
 
     assert_eq!(sea_monster_map.contents.len(), sea_monster_map.cols * sea_monster_map.rows);
 
-    let potential_roughs = sea_monster_map.contents.iter().filter(|x|**x).count();
+    let potential_roughs = sea_monster_map.contents.iter().filter(|x| **x).count();
     println!("There are overall {} potential rough tiles", potential_roughs);
     for m in &ALL {
         let modified = sea_monster_map.modify(*m);
-        let exclude = modified.serpent_tiles().len();
+        let exclude = serpent_tiles(&modified).len();
         println!("When viewed with modification {:?}, there are {} rough tiles", m, potential_roughs - exclude);
     }
     println!("{}", sea_monster_map)
@@ -389,24 +382,19 @@ fn remove_borders(solution: Tile) -> Tile {
     let cols = solution.cols - (2 * solution.cols / 10);
     let mut sea_monster_map = Tile {
         codes: vec![0],
-        rows, cols,
+        rows,
+        cols,
         contents: Vec::with_capacity(rows * cols),
     };
 
-    for row in 0..solution.rows {
+    solution.for_every_index(|v, (row, col)| {
         let row_discriminant = row % 10;
-        if row_discriminant == 0 || row_discriminant == 9 {
-            continue
-        }
-        for col in 0..solution.cols {
-            let col_discriminant = col % 10;
-            if col_discriminant == 0 || col_discriminant == 9 {
-                continue
-            }
+        let col_discriminant = col % 10;
 
-            sea_monster_map.contents.push(solution[(row, col)]);
+        if row_discriminant != 0 && row_discriminant != 9 && col_discriminant != 0 && col_discriminant != 9 {
+            sea_monster_map.contents.push(v)
         }
-    }
+    });
 
     sea_monster_map
 }
@@ -516,7 +504,7 @@ mod test {
     #[test]
     fn find_sea_serpent() {
         let canonical_serpent = must_parse(CANONICAL_SERPENT);
-        let serpent_indices = canonical_serpent.serpent_tiles();
+        let serpent_indices = serpent_tiles(&canonical_serpent);
         assert_eq!(serpent_indices, vec![
             (0, 18),
             (1, 0), (1, 5), (1, 6), (1, 11), (1, 12), (1, 17), (1, 18), (1, 19),
@@ -552,7 +540,7 @@ mod test {
 #...#.....#..##...###.##
 #..###....##.#...##.##.#
 ");
-        let serpent_indices = example.serpent_tiles();
+        let serpent_indices = serpent_tiles(&example);
         assert_eq!(serpent_indices.len(), 30);
     }
 
@@ -585,7 +573,7 @@ mod test {
 .#...
 ..#..
 ");
-        assert_eq!(orig.modify(Modification::Original), orig)
+        assert!(compare_only_contents(orig.modify(Modification::Original), orig.clone()))
     }
 
     #[test]
@@ -600,7 +588,7 @@ mod test {
 ...#.
 ..#..
 ");
-        assert_eq!(orig.modify(Modification::MirrorX), rotated)
+        assert!(compare_only_contents(orig.modify(Modification::MirrorX), rotated.clone()))
     }
 
     #[test]
@@ -615,7 +603,7 @@ mod test {
 .#...
 #...#
 ");
-        assert_eq!(orig.modify(Modification::MirrorY), rotated)
+        assert!(compare_only_contents(orig.modify(Modification::MirrorY), rotated))
     }
 
 
@@ -633,7 +621,7 @@ mod test {
 ...
 ..#
 ");
-        assert_eq!(orig.modify(Modification::RotateRight), rotated)
+        assert!(compare_only_contents(orig.modify(Modification::RotateRight), rotated))
     }
 
 
@@ -651,7 +639,7 @@ mod test {
 ...
 #..
 ");
-        assert_eq!(orig.modify(Modification::RotateRightMirrorX), rotated)
+        assert!(compare_only_contents(orig.modify(Modification::RotateRightMirrorX), rotated))
     }
 
     #[test]
@@ -666,7 +654,7 @@ mod test {
 ...#.
 #...#
 ");
-        assert_eq!(orig.modify(Modification::Rotate2), rotated)
+        assert!(compare_only_contents(orig.modify(Modification::Rotate2), rotated))
     }
 
     #[test]
@@ -683,7 +671,7 @@ mod test {
 .#.
 #..
 ");
-        assert_eq!(orig.modify(Modification::RotateLeft), rotated)
+        assert!(compare_only_contents(orig.modify(Modification::RotateLeft), rotated))
     }
 
     #[test]
@@ -700,7 +688,16 @@ mod test {
 .#.
 ..#
 ");
-        assert_eq!(orig.modify(Modification::RotateLeftMirrorX), rotated)
+        assert!(compare_only_contents(orig.modify(RotateLeftMirrorX), rotated))
+    }
+
+    fn compare_only_contents<T1: MapFragment, T2: MapFragment>(lhs: T1, rhs: T2) -> bool {
+        let mut matched = true;
+        lhs.for_every_index(|v,idx|{
+            matched &= v == rhs[idx]
+        });
+
+        matched
     }
 
     #[test]
