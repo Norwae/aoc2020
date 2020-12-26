@@ -143,21 +143,20 @@ impl TileView {
 }
 
 fn symmetric_equivalent<M: MapFragment>(mine: &M, other: &Tile ) -> bool {
+    let mut slicer = 4..4;
     if mine.rows() == other.rows && mine.cols() == other.cols {
-        for m in &NOT_FLIPPING {
-            let other_modified = other.modify(*m);
-            if other_modified.contents == mine.contents() {
-                return true;
-            }
-        }
+        slicer.start = 0;
     }
 
     if mine.cols() == other.rows && mine.rows() == other.cols {
-        for m in &FLIPPING {
-            let other_modified = other.modify(*m);
-            if  other_modified.contents == mine.contents()  {
-                return true;
-            }
+        slicer.end = 8;
+    }
+
+    for m in &ALL[slicer] {
+        let other_modified = other.modify(*m);
+
+        if  other_modified.contents == mine.contents()  {
+            return true;
         }
     }
 
