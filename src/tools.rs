@@ -8,7 +8,7 @@ pub fn run_with_timing<F: FnOnce(&str) -> String>(body: F) -> Result<(), io::Err
     let result = body(&buffer);
     let end = time::Instant::now();
 
-    println!("Computation took: {}ms and yielded {}" , (end - start).as_millis(), result);
+    println!("Computation took: {:?} and yielded \"{}\"" , (end - start), result);
     Ok(())
 }
 
