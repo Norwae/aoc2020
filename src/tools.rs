@@ -1,5 +1,5 @@
 use std::time;
-use std::io::{self, Stdin};
+use std::io;
 
 pub fn run_with_timing<F: FnOnce(&str) -> String>(body: F) -> Result<(), io::Error> {
     let buffer = read_problem_input()?;

@@ -5,9 +5,11 @@ use std::error::Error;
 mod tools;
 
 mod day1;
+mod day2;
 
-const SOLVERS: [for<'r> fn(&'r str) -> String; 1] = [
-    day1::solve
+const SOLVERS: [for<'r> fn(&'r str) -> String; 2] = [
+    day1::solve,
+    day2::solve
 ];
 
 fn main() -> Result<(), Box<dyn Error>>{
