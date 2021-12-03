@@ -6,10 +6,12 @@ mod tools;
 
 mod day1;
 mod day2;
+mod day3;
 
-const SOLVERS: [for<'r> fn(&'r str) -> String; 2] = [
+const SOLVERS: [for<'r> fn(&'r str) -> String; 3] = [
     day1::solve,
-    day2::solve
+    day2::solve,
+    day3::solve
 ];
 
 fn main() -> Result<(), Box<dyn Error>>{
