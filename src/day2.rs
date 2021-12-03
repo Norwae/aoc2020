@@ -1,11 +1,10 @@
-use std::fmt::format;
 use nom::branch::alt;
 use nom::bytes::complete::tag;
 use nom::character::complete::digit1;
 use nom::combinator::map;
 use nom::IResult;
 use nom::multi::many1;
-use nom::sequence::{delimited, terminated, tuple};
+use nom::sequence::{terminated, tuple};
 
 enum Direction {
     Forward,
