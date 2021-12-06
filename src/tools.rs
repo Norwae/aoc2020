@@ -13,19 +13,20 @@ pub fn run_with_timing<F: FnOnce(&str) -> String>(body: F) -> Result<(), io::Err
 }
 
 fn read_problem_input() -> Result<String, io::Error> {
-    println!("Input problem data, terminate with empty line or eof");
+    println!("Input problem data, terminate with !EOF! line");
     let mut buffer = String::new();
     let stdin = io::stdin();
     let mut lines = 0;
 
     loop {
         let read = stdin.read_line(&mut buffer)?;
-        if read == 0 || buffer.ends_with("\r\n\r\n") || buffer.ends_with("\n\n") {
+        if read == 0 || buffer.ends_with("!EOF!\n") {
             break
         }
         lines += 1
     }
 
     println!("Read {} bytes of input ({} lines of text)", buffer.as_bytes().len(), lines);
+    buffer.truncate(buffer.len() - 6);
     Ok(buffer)
 }

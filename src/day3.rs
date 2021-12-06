@@ -1,5 +1,6 @@
 use std::error::Error;
 use std::fmt::{self, Formatter};
+use std::mem::swap;
 use std::ops::{Index, Mul, Not};
 
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
@@ -87,25 +88,29 @@ fn count_ones(input: &Vec<NBitNr>) -> Vec<usize> {
 fn progressive_search<F: Fn(usize, usize) -> bool>(haystack: &Vec<NBitNr>, condition: F) -> NBitNr {
     let nr_length = haystack[0].bits;
     let mut haystack = haystack.clone();
+    let mut found = Vec::with_capacity(haystack.len());
 
-    for check_idx in 0..=nr_length {
+    for check_idx in 0..nr_length {
         let ones = haystack.iter().fold(0usize, |sum, next| sum + (next[check_idx] as usize));
         let next_check_bit = condition(haystack.len() - ones, ones);
         dbg!(check_idx, haystack.len() - ones, ones, condition(haystack.len() - ones, ones));
 
-        haystack = haystack.into_iter().filter(|element| element[check_idx] == next_check_bit).collect();
+        for needle in &haystack {
+            if needle[check_idx] == next_check_bit {
+                found.push(*needle);
+            }
+        }
 
         if haystack.len() == 1 {
             break;
+        } else {
+            swap(&mut haystack, &mut found);
+            found.clear()
         }
 
     }
 
-    assert_eq!(haystack.len(), 1);
-    let value = haystack[0];
-    println!("extracted {} from haystack", &value);
-    value
-
+    haystack[0]
 }
 
 pub fn solve(input: &str) -> String {
