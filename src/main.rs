@@ -10,17 +10,42 @@ mod day3;
 mod day4;
 mod day5;
 mod day6;
+mod day7;
 
-const SOLVERS: [for<'r> fn(&'r str) -> String; 6] = [
+fn fail(input: &str) -> String {
+    unimplemented!()
+}
+
+const SOLVERS: [for<'r> fn(&'r str) -> String; 26] = [
     day1::solve,
     day2::solve,
     day3::solve,
     day4::solve,
     day5::solve,
-    day6::solve
+    day6::solve,
+    day7::solve,
+    fail,
+    fail,
+    fail,
+    fail,
+    fail,
+    fail,
+    fail,
+    fail,
+    fail,
+    fail,
+    fail,
+    fail,
+    fail,
+    fail,
+    fail,
+    fail,
+    fail,
+    fail,
+    fail
 ];
 
-fn main() -> Result<(), Box<dyn Error>>{
+fn main() -> Result<(), Box<dyn Error>> {
     println!("Input day to solve: ");
     let mut buffer = String::new();
 
