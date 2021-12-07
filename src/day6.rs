@@ -4,15 +4,8 @@ pub fn solve(input: &str) -> String {
         populations[age] += 1
     }
 
-    println!("Initial {:?}", &populations);
     for day in 0..256 {
-        let spawners = populations[0];
-        for i in 0..=7 {
-            populations[i] = populations[i + 1];
-        }
-        populations[6] += spawners;
-        populations[8] = spawners;
-
+        populations[(day + 7) % 9] += populations[day % 9];
     }
 
     format!("total: {}",  populations.iter().cloned().sum::<u64>())
