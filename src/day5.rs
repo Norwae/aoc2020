@@ -1,11 +1,10 @@
 use std::cmp::{max, min};
-use std::collections::HashMap;
 use nom::bytes::complete::tag;
 use nom::character::complete::{i32 as intparse};
 use nom::combinator::map;
 use nom::IResult;
 use nom::multi::many1;
-use nom::sequence::{terminated, tuple};
+use nom::sequence::tuple;
 
 const MAX: usize = 1000;
 

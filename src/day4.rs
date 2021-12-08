@@ -1,17 +1,17 @@
-use std::fmt::{Display, format, Formatter};
+use std::fmt::{Display, Formatter};
 use std::mem::swap;
+
 use nom::bytes::complete::tag;
-use nom::character::complete::{digit1, space0, space1};
+use nom::character::complete::{space0, space1};
+use nom::character::complete::u32 as u32_parse;
 use nom::combinator::{map, opt};
 use nom::IResult;
-use nom::sequence::{terminated, tuple};
-use nom::character::complete::{u32 as u32_parse};
 use nom::multi::{many1, separated_list1};
+use nom::sequence::{terminated, tuple};
 
 struct Board {
     numbers: [[u32; 5]; 5],
     scored: [[bool; 5]; 5],
-    has_won: bool
 }
 
 
@@ -56,7 +56,7 @@ impl Board {
 impl Display for Board {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let mut fmt_line = |l: usize| {
-            let mut fmt_single = |c: usize| {
+            let fmt_single = |c: usize| {
                 if self.scored[l][c] {
                     "    X".to_string()
                 } else {
@@ -101,7 +101,7 @@ fn line(input: &str) -> IResult<&str, [u32; 5]> {
 
 
 fn board(input: &str) -> IResult<&str, Board> {
-    map(tuple((line, line, line, line, line)), |(_1, _2, _3, _4, _5)| Board { numbers: [_1, _2, _3, _4, _5], scored: [[false;5];5], has_won: false })(input)
+    map(tuple((line, line, line, line, line)), |(_1, _2, _3, _4, _5)| Board { numbers: [_1, _2, _3, _4, _5], scored: [[false;5];5] })(input)
 }
 
 

@@ -11,12 +11,13 @@ mod day4;
 mod day5;
 mod day6;
 mod day7;
+mod day8;
 
-fn fail(input: &str) -> String {
+fn fail(_: &str) -> String {
     unimplemented!()
 }
 
-const SOLVERS: [for<'r> fn(&'r str) -> String; 26] = [
+const SOLVERS: [for<'r> fn(&'r str) -> String; 25] = [
     day1::solve,
     day2::solve,
     day3::solve,
@@ -24,8 +25,7 @@ const SOLVERS: [for<'r> fn(&'r str) -> String; 26] = [
     day5::solve,
     day6::solve,
     day7::solve,
-    fail,
-    fail,
+    day8::solve,
     fail,
     fail,
     fail,

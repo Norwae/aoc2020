@@ -1,5 +1,4 @@
 use std::cmp::min;
-use std::ops::Range;
 
 fn cost_quadratic(numbers: &[i32], target: i32) -> i32 {
     numbers.iter().map(|n| {
