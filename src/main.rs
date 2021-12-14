@@ -3,6 +3,7 @@ use crate::tools::run_with_timing;
 use std::error::Error;
 
 mod tools;
+mod bounded2d;
 
 mod day1;
 mod day2;
@@ -14,6 +15,7 @@ mod day7;
 mod day8;
 mod day9;
 mod day10;
+mod day11;
 
 fn fail(_: &str) -> String {
     unimplemented!()
@@ -30,7 +32,7 @@ const SOLVERS: [for<'r> fn(&'r str) -> String; 25] = [
     day8::solve,
     day9::solve,
     day10::solve,
-    fail,
+    day11::solve,
     fail,
     fail,
     fail,

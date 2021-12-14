@@ -1,8 +1,7 @@
 use std::fmt::Debug;
 use std::ops::{Index, IndexMut};
+use crate::bounded2d::{Array2DIndex, BoundedLinear2DArray};
 
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
-struct Array2DIndex(i32, i32);
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 enum Drainage {
@@ -12,101 +11,13 @@ enum Drainage {
     Pending,
 }
 
-#[derive(Debug)]
-struct BoundedLinear2DArray<T> {
-    storage: Vec<T>,
-    boundary: T,
-    columns: usize,
-    rows: usize,
-}
-
-impl<T> BoundedLinear2DArray<T> {
-    fn new(storage: Vec<T>, columns: usize, boundary: T) -> Self {
-        let rows = storage.len() / columns;
-        Self { storage, boundary, columns, rows }
-    }
-
-    fn iter(&self) -> impl Iterator<Item=&T> {
-        self.indices().map(|idx| &self[idx])
-    }
-
-    fn indices(&self) -> impl Iterator<Item=Array2DIndex> {
-        struct Raw(usize, usize, usize);
-
-        impl Iterator for Raw {
-            type Item = Array2DIndex;
-
-            fn next(&mut self) -> Option<Self::Item> {
-                let Raw(value, limit, columns) = self;
-
-                if *value < *limit {
-                    let idx = *value as i32;
-                    let cols = *columns as i32;
-                    *value += 1;
-                    Some(Array2DIndex(idx / cols, idx % cols))
-                } else {
-                    None
-                }
-            }
-        }
-
-        Raw(0, self.storage.len(), self.columns)
-    }
-
-    fn neighbours_of(&self, start: Array2DIndex) -> impl Iterator<Item=Array2DIndex> {
-        static OFFSETS: [(i32, i32); 4] = [(-1, 0), (0, -1), (0, 1), (1, 0)];
-        struct OffsetIter(usize, Array2DIndex);
-
-        impl Iterator for OffsetIter {
-            type Item = Array2DIndex;
-
-            fn next(&mut self) -> Option<Self::Item> {
-                if self.0 == 4 {
-                    None
-                } else {
-                    let offset = OFFSETS[self.0];
-                    self.0 += 1;
-                    Some(Array2DIndex(self.1.0 + offset.0, self.1.1 + offset.1))
-                }
-            }
-        }
-
-        OffsetIter(0, start)
-    }
-}
-
-impl<T> Index<Array2DIndex> for BoundedLinear2DArray<T> {
-    type Output = T;
-
-    fn index(&self, index: Array2DIndex) -> &Self::Output {
-        let Array2DIndex(x, y) = index;
-
-        if x < 0 || y < 0 || x as usize >= self.columns || y as usize >= self.rows {
-            return &self.boundary;
-        }
-
-        &self.storage[x as usize + self.columns * y as usize]
-    }
-}
-
-impl<T> IndexMut<Array2DIndex> for BoundedLinear2DArray<T> {
-    fn index_mut(&mut self, index: Array2DIndex) -> &mut Self::Output {
-        let Array2DIndex(x, y) = index;
-
-        if x < 0 || y < 0 || x as usize >= self.columns || y as usize >= self.rows {
-            panic!("Index ({},{}) out of range", x, y);
-        }
-
-        &mut self.storage[x as usize + self.columns * y as usize]
-    }
-}
 
 fn ensure_drainage_initialized(target: &mut BoundedLinear2DArray<Drainage>, elevation: &BoundedLinear2DArray<i32>, start: Array2DIndex) {
     if target[start] == Drainage::Unknown {
         target[start] = Drainage::Pending;
         let mut drain_found = None;
 
-        for idx in target.neighbours_of(start) {
+        for idx in target.direct_neighbours_of(start) {
             if elevation[idx] <= elevation[start] {
                 ensure_drainage_initialized(target, elevation, idx);
 
@@ -152,7 +63,7 @@ pub fn solve(input: &str) -> String {
 
         if value_here == 9 {
             drainage[position] = Drainage::Ridge
-        } else if map.neighbours_of(position).all(|neighbour| map[neighbour] > value_here) {
+        } else if map.direct_neighbours_of(position).all(|neighbour| map[neighbour] > value_here) {
             drains.push((position, 0));
             total_risk += 1 + value_here;
             drainage[position] = Drainage::DrainsTo(position)
