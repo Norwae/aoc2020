@@ -16,6 +16,7 @@ mod day8;
 mod day9;
 mod day10;
 mod day11;
+mod day12;
 
 fn fail(_: &str) -> String {
     unimplemented!()
@@ -33,7 +34,7 @@ const SOLVERS: [for<'r> fn(&'r str) -> String; 25] = [
     day9::solve,
     day10::solve,
     day11::solve,
-    fail,
+    day12::solve,
     fail,
     fail,
     fail,
